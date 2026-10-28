@@ -20,6 +20,9 @@ tests et validation de `/health`, avec sauvegarde et rollback.
 > Raspberry Pi OS Trixie Desktop (session labwc). Le support Bookworm/X11 est
 > prévu par l'autostart XDG et `xset`.
 
+Dépôt : <https://github.com/skyfoxmcdev/Pi-Dashboard>  
+Release initiale : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.1.0>
+
 ---
 
 ## Sommaire
@@ -654,8 +657,9 @@ Le test ignoré vérifie un fuseau IANA explicite ; la machine Windows de
 développement n'a pas la base `tzdata`, contrairement à Raspberry Pi OS. Les
 86 tests ont été exécutés, 85 ont réussi. Aucun test n'a été exécuté sur le
 Raspberry Pi cible. La suite couvre aussi le parseur de versions, les sommes
-SHA-256, l'extraction d'archives hostiles, la validation d'une release et la  configuration de l'updater, ainsi que l'application d'une mise à jour et le
-  rollback sur des arborescences temporaires.
+SHA-256, l'extraction d'archives hostiles, la validation d'une release et la
+configuration de l'updater, ainsi que l'application d'une mise à jour et le
+rollback sur des arborescences temporaires.
 
 ### Vérifications complémentaires effectuées
 
@@ -1007,6 +1011,10 @@ charge.
   `/etc/pi-dashboard/config.json`, ni les secrets éventuels, ni les données du
   cache. Si une nouvelle version exige une nouvelle clé de configuration, elle
   doit être ajoutée manuellement dans `/etc/pi-dashboard/config.json`.
+- **Unités systemd** : l'updater remplace le code et les scripts sous `/opt`,
+  mais pas les fichiers déjà installés dans `/etc/systemd/system`. Une
+  évolution des unités doit être appliquée en relançant `deploy/install.sh`
+  depuis la nouvelle version (ou manuellement).
 - **Rollback** : conserve une seule sauvegarde de la version précédente ; un
   second échec avant correction peut la remplacer. En cas de rollback,
   l'auto-update est désactivée pour éviter une boucle.
