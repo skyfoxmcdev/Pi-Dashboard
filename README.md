@@ -676,6 +676,13 @@ quotidiennes, lever/coucher disponibles, cache écrit. L'API `/api/status` a ét
 interrogée en HTTP local et l'interface a été contrôlée dans Chromium à
 1920×1080 (aucun débordement vertical, 8 heures et 5 jours rendus).
 
+La release GitHub `v1.1.0` a aussi été testée de bout en bout avec le vrai
+updater : téléchargement HTTPS, contrôle de `SHA256SUMS`, extraction et
+validation de l'archive, exécution des tests de la release, sauvegarde d'une
+installation simulée en 1.0.0, application de la 1.1.0 et conservation d'une
+configuration personnelle factice. Le redémarrage systemd et le `/health` réel
+n'ont pas été exécutés sur cette machine Windows.
+
 **Non vérifié** : installation réelle, paquets, Wayland/labwc, autologin,
 blanking, Chromium kiosque, RAM/FPS et température sur Raspberry Pi 3B+. Voir
 la checklist ci-dessous.
@@ -1021,8 +1028,8 @@ charge.
 - **Image système** : non fournie.
 - **Tests** : les 86 tests ont été exécutés hors Raspberry Pi ; un test de
   fuseau IANA a été ignoré sous Windows faute de base `tzdata`. L'installation
-  réelle, systemd et le téléchargement d'une release GitHub n'ont pas été
-  exécutés sur le Pi.
+  réelle, le redémarrage systemd, la minuterie et le rechargement du kiosque
+  n'ont pas été exécutés sur le Pi.
 
 ---
 
