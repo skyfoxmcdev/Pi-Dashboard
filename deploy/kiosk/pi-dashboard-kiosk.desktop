@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Pi Dashboard Kiosk
+Name[fr]=Pi Dashboard Kiosk
+Comment=Start the Pi Dashboard in Chromium kiosk mode
+Comment[fr]=Démarre Pi Dashboard dans Chromium en mode kiosque
+Exec=/opt/pi-dashboard/deploy/kiosk/launch-kiosk.sh
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

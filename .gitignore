@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.tmp/
+dist/
+*.zip
+.freebuff/
+.venv/
+venv/
+state/
+*.log
+
+# Configuration locale : peut contenir la localisation personnelle.
+config/config.json

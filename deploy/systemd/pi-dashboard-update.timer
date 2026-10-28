@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi Dashboard — vérification quotidienne des mises à jour
+Documentation=file:/opt/pi-dashboard/README.md
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+RandomizedDelaySec=45m
+Persistent=true
+Unit=pi-dashboard-update.service
+
+[Install]
+WantedBy=timers.target

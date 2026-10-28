@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080D17">
+  <meta name="description" content="Pi Dashboard, tableau de bord météo et système pour Raspberry Pi.">
+  <title>Pi Dashboard</title>
+  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <script src="/assets/js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au tableau de bord</a>
+  <h1 class="visually-hidden">Pi Dashboard</h1>
+
+  <div class="ambient" aria-hidden="true">
+    <div class="ambient__glow ambient__glow--cyan"></div>
+    <div class="ambient__glow ambient__glow--violet"></div>
+    <div class="ambient__glow ambient__glow--amber"></div>
+  </div>
+
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none">
+            <rect x="1" y="1" width="38" height="38" rx="12" stroke="url(#brandGradient)" stroke-width="1.2"/>
+            <path d="M12 26.5V15.5L20 11l8 4.5v11L20 31l-8-4.5Z" stroke="url(#brandGradient)" stroke-width="1.4" stroke-linejoin="round"/>
+            <circle cx="20" cy="21" r="3.4" fill="url(#brandGradient)"/>
+            <path d="M20 12v5M20 25.5V30M13.5 17.8l4.2 2.4M22.3 24l4.2 2.4M26.5 17.8l-4.2 2.4M17.7 24l-4.2 2.4" stroke="#EEF3FF" stroke-opacity=".38" stroke-width="1"/>
+            <defs>
+              <linearGradient id="brandGradient" x1="6" y1="4" x2="34" y2="36" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#7BD8F5"/>
+                <stop offset=".55" stop-color="#A99AFF"/>
+                <stop offset="1" stop-color="#779BFF"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </span>
+        <span class="brand__copy">
+          <span class="brand__name">Pi Dashboard</span>
+          <span class="brand__tagline">Ambiance &amp; télémétrie</span>
+        </span>
+      </div>
+
+      <div class="location">
+        <span class="location__icon" id="location-icon" aria-hidden="true"></span>
+        <span class="location__copy">
+          <span class="location__label">Lieu</span>
+          <strong id="location-name">Chargement…</strong>
+        </span>
+      </div>
+
+      <div class="chips" aria-label="État de la connexion et du système">
+        <div class="chip" id="wifi-chip" data-state="unknown">
+          <span class="chip__icon" id="wifi-chip-icon" aria-hidden="true"></span>
+          <span class="chip__copy">
+            <span class="chip__label">Wi-Fi</span>
+            <strong class="chip__value" id="wifi-chip-label">—</strong>
+          </span>
+        </div>
+        <div class="chip" id="internet-chip" data-state="unknown">
+          <span class="chip__icon" id="internet-chip-icon" aria-hidden="true"></span>
+          <span class="chip__copy">
+            <span class="chip__label">Internet</span>
+            <strong class="chip__value" id="internet-chip-label">—</strong>
+          </span>
+        </div>
+        <div class="chip" id="health-chip" data-state="unknown">
+          <span class="chip__icon" id="health-chip-icon" aria-hidden="true"></span>
+          <span class="chip__copy">
+            <span class="chip__label">Système</span>
+            <strong class="chip__value" id="health-chip-label">—</strong>
+          </span>
+        </div>
+        <div class="chip chip--night" id="night-chip" data-state="off" hidden>
+          <span class="chip__icon" id="night-chip-icon" aria-hidden="true"></span>
+          <span class="chip__copy">
+            <span class="chip__label">Mode</span>
+            <strong class="chip__value">Nuit</strong>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main" id="main">
+      <section class="card hero" aria-labelledby="hero-heading">
+        <div class="card__topline">
+          <p class="eyebrow" id="hero-heading">Heure locale</p>
+          <p class="hero__tz" id="timezone-label">—</p>
+        </div>
+
+        <div class="clock" aria-label="Heure actuelle">
+          <span class="clock__time" id="clock-time">--:--</span>
+          <span class="clock__seconds" id="clock-seconds">--</span>
+        </div>
+
+        <div class="hero__date">
+          <p class="hero__day" id="day-label">—</p>
+          <p class="hero__fulldate" id="date-label">—</p>
+        </div>
+
+        <div class="sun-panel">
+          <div class="sun-panel__item">
+            <span class="sun-panel__icon sun-panel__icon--rise" id="sunrise-icon" aria-hidden="true"></span>
+            <span class="sun-panel__copy">
+              <span class="sun-panel__label">Lever du soleil</span>
+              <strong id="sunrise-time">—</strong>
+            </span>
+          </div>
+          <span class="sun-panel__rule" aria-hidden="true"></span>
+          <div class="sun-panel__item">
+            <span class="sun-panel__icon sun-panel__icon--set" id="sunset-icon" aria-hidden="true"></span>
+            <span class="sun-panel__copy">
+              <span class="sun-panel__label">Coucher du soleil</span>
+              <strong id="sunset-time">—</strong>
+            </span>
+          </div>
+          <span class="sun-panel__spacer" aria-hidden="true"></span>
+          <div class="sun-panel__meta">
+            <span class="sun-panel__label">Journée</span>
+            <strong id="day-length">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="card weather" id="weather-card" aria-labelledby="weather-heading">
+        <div class="card__topline weather__topline">
+          <div>
+            <p class="eyebrow" id="weather-heading">Météo actuelle</p>
+            <h2 class="weather__condition" id="condition">—</h2>
+          </div>
+          <span class="badge badge--stale" id="weather-badge" hidden>Données en cache</span>
+        </div>
+
+        <div class="weather__body">
+          <div class="weather__visual">
+            <div class="weather__icon" id="weather-icon" aria-hidden="true"></div>
+          </div>
+          <div class="weather__reading">
+            <span class="weather__temperature" id="temperature">—</span>
+            <span class="weather__unit" id="temperature-unit">°C</span>
+          </div>
+        </div>
+
+        <p class="weather__feels" id="weather-feels">Ressenti <strong id="apparent-temperature">—</strong></p>
+
+        <div class="weather__metrics">
+          <div class="metric">
+            <span class="metric__icon" id="humidity-icon" aria-hidden="true"></span>
+            <div class="metric__copy">
+              <span class="metric__label">Humidité</span>
+              <strong class="metric__value" id="humidity">—</strong>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric__icon" id="wind-icon" aria-hidden="true"></span>
+            <div class="metric__copy">
+              <span class="metric__label">Vent</span>
+              <strong class="metric__value"><span id="wind">—</span> <span class="metric__sub" id="wind-direction"></span></strong>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric__icon" id="rain-icon" aria-hidden="true"></span>
+            <div class="metric__copy">
+              <span class="metric__label">Précipitations</span>
+              <strong class="metric__value" id="precipitation">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <p class="weather__empty" id="weather-empty" hidden></p>
+
+        <div class="weather__footer">
+          <span class="weather__updated">
+            <span class="weather__updated-icon" id="refresh-icon" aria-hidden="true"></span>
+            <span id="weather-updated">En attente de la météo</span>
+          </span>
+          <span class="weather__provider">Open-Meteo</span>
+        </div>
+      </section>
+    </main>
+
+    <section class="bottom-grid" aria-label="Prévisions et état du Raspberry Pi">
+      <article class="card hourly" aria-labelledby="hourly-heading">
+        <div class="card__header">
+          <h2 class="card__title" id="hourly-heading">Prochaines heures</h2>
+          <span class="card__meta" id="hourly-note">8 prochaines heures</span>
+        </div>
+        <div class="hourly__strip" id="hourly-list" role="list">
+          <p class="placeholder">Prévisions horaires en attente.</p>
+        </div>
+      </article>
+
+      <article class="card daily" aria-labelledby="daily-heading">
+        <div class="card__header">
+          <h2 class="card__title" id="daily-heading">Cinq prochains jours</h2>
+          <span class="card__meta" id="daily-note">Tendance</span>
+        </div>
+        <div class="daily__list" id="daily-list">
+          <p class="placeholder">Prévisions quotidiennes en attente.</p>
+        </div>
+      </article>
+
+      <article class="card monitor" id="system-card" aria-labelledby="system-heading">
+        <div class="card__header">
+          <h2 class="card__title" id="system-heading">Système</h2>
+          <span class="pill" id="health-label" data-level="unknown">Indisponible</span>
+        </div>
+
+        <div class="meter">
+          <div class="meter__head">
+            <span class="meter__label"><span class="meter__icon" id="cpu-icon" aria-hidden="true"></span> Processeur</span>
+            <strong id="cpu-value">—</strong>
+          </div>
+          <div class="meter__track" role="progressbar" aria-label="Utilisation du processeur" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="cpu-progress">
+            <span class="meter__fill meter__fill--cyan" id="cpu-bar"></span>
+          </div>
+        </div>
+
+        <div class="meter">
+          <div class="meter__head">
+            <span class="meter__label"><span class="meter__icon" id="memory-icon" aria-hidden="true"></span> Mémoire</span>
+            <strong id="memory-value">—</strong>
+          </div>
+          <div class="meter__track" role="progressbar" aria-label="Utilisation de la mémoire" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="memory-progress">
+            <span class="meter__fill meter__fill--violet" id="memory-bar"></span>
+          </div>
+          <span class="meter__detail" id="memory-detail">—</span>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat__label"><span class="stat__icon" id="thermometer-icon" aria-hidden="true"></span> Temp. CPU</span>
+            <strong id="cpu-temperature">—</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label"><span class="stat__icon" id="uptime-icon" aria-hidden="true"></span> En marche</span>
+            <strong id="uptime">—</strong>
+          </div>
+        </div>
+
+        <p class="monitor__note" id="health-detail">En attente des métriques système.</p>
+      </article>
+
+      <article class="card network" id="network-card" aria-labelledby="network-heading">
+        <div class="card__header">
+          <h2 class="card__title" id="network-heading">Réseau</h2>
+          <span class="pill" id="wifi-state" data-level="unknown">—</span>
+        </div>
+
+        <div class="network__wifi">
+          <span class="network__icon" id="network-wifi-icon" aria-hidden="true"></span>
+          <div class="network__wifi-copy">
+            <span class="network__label">Réseau Wi-Fi</span>
+            <strong class="network__ssid" id="ssid">—</strong>
+          </div>
+          <div class="signal" aria-label="Qualité du signal">
+            <span class="signal__value" id="signal-value">—</span>
+            <span class="signal__bars" id="signal-bars" data-level="0" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </span>
+          </div>
+        </div>
+
+        <div class="network__rows">
+          <div class="network__row">
+            <span class="network__row-label">Adresse IP</span>
+            <strong id="ip-address">—</strong>
+          </div>
+          <div class="network__row">
+            <span class="network__row-label">Interface</span>
+            <strong id="network-interface">—</strong>
+          </div>
+          <div class="network__row">
+            <span class="network__row-label">Dernière vérification</span>
+            <strong id="network-checked">—</strong>
+          </div>
+        </div>
+
+        <p class="network__note">État Internet déduit de la dernière requête météo, sans requête réseau supplémentaire.</p>
+      </article>
+    </section>
+
+    <footer class="statusbar">
+      <div class="statusbar__left">
+        <span class="service" id="service-state" data-state="boot">
+          <span class="service__dot" aria-hidden="true"></span>
+          <span id="service-label">Connexion au service…</span>
+        </span>
+        <span class="statusbar__divider" aria-hidden="true"></span>
+        <span>Dernière actualisation <strong id="last-update">—</strong></span>
+      </div>
+      <div class="statusbar__right">
+        <a class="attribution" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Météo&nbsp;: Open-Meteo · CC&nbsp;BY&nbsp;4.0</a>
+        <span class="statusbar__divider" aria-hidden="true"></span>
+        <span>Pi Dashboard <span id="app-version">v—</span></span>
+      </div>
+    </footer>
+  </div>
+
+  <noscript>
+    <div class="noscript">Pi Dashboard nécessite JavaScript pour afficher les données du Raspberry Pi.</div>
+  </noscript>
+</body>
+</html>

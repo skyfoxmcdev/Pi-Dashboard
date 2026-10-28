@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "repository": "skyfoxmcdev/Pi-Dashboard",
+  "channel": "release",
+  "asset_prefix": "pi-dashboard",
+  "checksum_asset": "SHA256SUMS"
+}

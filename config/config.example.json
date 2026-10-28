@@ -1,0 +1,40 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "location": {
+    "name": "Votre ville (à configurer)",
+    "latitude": null,
+    "longitude": null,
+    "timezone": "auto"
+  },
+  "weather": {
+    "provider": "open-meteo",
+    "refresh_seconds": 900,
+    "request_timeout_seconds": 8,
+    "cache_file": "/var/lib/pi-dashboard/weather-cache.json",
+    "temperature_unit": "celsius",
+    "wind_speed_unit": "kmh",
+    "precipitation_unit": "mm"
+  },
+  "night_mode": {
+    "enabled": true,
+    "start": "22:00",
+    "end": "07:00"
+  },
+  "system": {
+    "refresh_seconds": 2,
+    "thresholds": {
+      "cpu_warn_percent": 80,
+      "cpu_critical_percent": 95,
+      "memory_warn_percent": 80,
+      "memory_critical_percent": 95,
+      "temperature_warn_c": 70,
+      "temperature_critical_c": 80
+    }
+  },
+  "ui": {
+    "poll_seconds": 10
+  }
+}

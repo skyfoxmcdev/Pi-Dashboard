@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Pi Dashboard — commande de maintenance des mises à jour.
+# À exécuter avec sudo pour « run », « rollback », « enable » et « disable ».
+
+set -Eeuo pipefail
+
+APP_DIR="${PI_DASHBOARD_APP_DIR:-/opt/pi-dashboard}"
+
+if [[ ! -d "$APP_DIR/backend" ]]; then
+  echo "Erreur : application introuvable dans $APP_DIR." >&2
+  exit 1
+fi
+
+cd "$APP_DIR"
+exec /usr/bin/python3 -m backend.updater "$@"

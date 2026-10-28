@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# Pi Dashboard — contrôle du kiosque depuis une session SSH ou un TTY.
+# À exécuter avec l'utilisateur du bureau, sans sudo.
+
+set -u
+
+APP_DIR="/opt/pi-dashboard"
+LAUNCHER="$APP_DIR/deploy/kiosk/launch-kiosk.sh"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/pi-dashboard"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/pi-dashboard"
+LOCK_FILE="$CACHE_HOME/kiosk.lock"
+LAUNCHER_PID_FILE="$CACHE_HOME/kiosk.pid"
+CHROMIUM_PID_FILE="$CACHE_HOME/chromium.pid"
+STOP_FILE="$CONFIG_HOME/stop-request"
+DISABLED_FILE="$CONFIG_HOME/disabled"
+LOG_FILE="$CACHE_HOME/kiosk.log"
+
+die() {
+  printf 'Erreur : %s\n' "$*" >&2
+  exit 1
+}
+
+if [ "$(id -u)" -eq 0 ]; then
+  die "exécutez cette commande avec l'utilisateur du bureau, sans sudo."
+fi
+
+mkdir -p "$CONFIG_HOME" "$CACHE_HOME"
+
+process_cmdline() {
+  local pid="$1"
+  [ -r "/proc/$pid/cmdline" ] || return 1
+  tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true
+}
+
+launcher_running() {
+  local pid
+  [ -f "$LAUNCHER_PID_FILE" ] || return 1
+  pid="$(cat "$LAUNCHER_PID_FILE" 2>/dev/null || true)"
+  case "$pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  process_cmdline "$pid" | grep -Fq 'launch-kiosk.sh'
+}
+
+chromium_running() {
+  local pid
+  [ -f "$CHROMIUM_PID_FILE" ] || return 1
+  pid="$(cat "$CHROMIUM_PID_FILE" 2>/dev/null || true)"
+  case "$pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$pid" 2>/dev/null || return 1
+  process_cmdline "$pid" | grep -Fq "$CACHE_HOME/chromium"
+}
+
+backend_state() {
+  python3 - <<'PY' >/dev/null 2>&1
+import json
+import sys
+import urllib.request
+
+try:
+    with open("/etc/pi-dashboard/config.json", encoding="utf-8") as handle:
+        port = int(json.load(handle).get("server", {}).get("port", 8080))
+except Exception:
+    port = 8080
+try:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as response:
+        raise SystemExit(0 if response.status == 200 else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+stop_kiosk() {
+  touch "$STOP_FILE"
+
+  if chromium_running; then
+    local cpid
+    cpid="$(cat "$CHROMIUM_PID_FILE")"
+    echo "Fermeture de Chromium (pid $cpid)…"
+    kill -TERM "$cpid" 2>/dev/null || true
+  fi
+
+  if launcher_running; then
+    local lpid i
+    lpid="$(cat "$LAUNCHER_PID_FILE")"
+    for i in $(seq 1 20); do
+      if ! launcher_running; then
+        break
+      fi
+      sleep 0.4
+    done
+    if launcher_running; then
+      echo "Arrêt du lanceur (pid $lpid)…"
+      kill -TERM "$lpid" 2>/dev/null || true
+      sleep 1
+    fi
+  fi
+
+  if launcher_running || chromium_running; then
+    echo "Le kiosque résiste encore ; envoyez SIGTERM au lanceur ou déconnectez la session." >&2
+    return 1
+  fi
+
+  # The launcher has exited: clear the one-shot request so a future login starts
+  # the kiosk again. The persistent disable flag is left untouched.
+  rm -f "$STOP_FILE"
+  echo "Kiosque arrêté. Le bureau reste accessible."
+  return 0
+}
+
+start_kiosk() {
+  rm -f "$DISABLED_FILE" "$STOP_FILE"
+  if launcher_running; then
+    echo "Le kiosque est déjà actif."
+    return 0
+  fi
+  [ -x "$LAUNCHER" ] || die "lanceur introuvable : $LAUNCHER"
+  if [ -z "${WAYLAND_DISPLAY:-}" ] && [ -z "${DISPLAY:-}" ]; then
+    die "aucun environnement graphique dans ce terminal. Lancez « pi-dashboard-kiosk start » depuis un terminal de la session Desktop, ou redémarrez la session."
+  fi
+  if command -v setsid >/dev/null 2>&1; then
+    nohup setsid "$LAUNCHER" </dev/null >/dev/null 2>&1 &
+  else
+    nohup "$LAUNCHER" </dev/null >/dev/null 2>&1 &
+  fi
+  sleep 1
+  if launcher_running; then
+    echo "Kiosque lancé."
+  else
+    echo "Lancement demandé ; consultez $LOG_FILE si Chromium n'apparaît pas."
+  fi
+}
+
+restart_kiosk() {
+  rm -f "$DISABLED_FILE" "$STOP_FILE"
+  if launcher_running; then
+    if chromium_running; then
+      local old_pid new_pid i
+      old_pid="$(cat "$CHROMIUM_PID_FILE")"
+      echo "Rechargement de Chromium (pid $old_pid)…"
+      kill -TERM "$old_pid" 2>/dev/null || true
+      for i in $(seq 1 40); do
+        sleep 0.5
+        if ! launcher_running; then
+          break
+        fi
+        if chromium_running; then
+          new_pid="$(cat "$CHROMIUM_PID_FILE" 2>/dev/null || true)"
+          if [ -n "$new_pid" ] && [ "$new_pid" != "$old_pid" ]; then
+            echo "Kiosque rechargé (pid $new_pid)."
+            return 0
+          fi
+        fi
+      done
+      if launcher_running; then
+        echo "Chromium n'a pas été relancé dans le délai imparti ; consultez $LOG_FILE." >&2
+        return 1
+      fi
+    else
+      echo "Lanceur actif sans Chromium : il tentera une relance automatique."
+      return 0
+    fi
+  fi
+  stop_kiosk && sleep 1 && start_kiosk
+}
+
+status_kiosk() {
+  echo "Utilisateur          : $(id -un)"
+  if [ -e "$DISABLED_FILE" ]; then
+    echo "Autostart            : désactivé (mode maintenance)"
+  else
+    echo "Autostart            : activé"
+  fi
+  if launcher_running; then
+    echo "Lanceur              : actif (pid $(cat "$LAUNCHER_PID_FILE"))"
+  else
+    echo "Lanceur              : arrêté"
+  fi
+  if chromium_running; then
+    echo "Chromium             : actif (pid $(cat "$CHROMIUM_PID_FILE"))"
+  else
+    echo "Chromium             : arrêté"
+  fi
+  if backend_state; then
+    echo "Backend /health      : disponible"
+  else
+    echo "Backend /health      : indisponible"
+  fi
+  echo "Journal              : $LOG_FILE"
+  if [ -e "$STOP_FILE" ]; then
+    echo "Arrêt en cours       : oui"
+  fi
+}
+
+case "${1:-status}" in
+  status)
+    status_kiosk
+    ;;
+  start)
+    start_kiosk
+    ;;
+  stop)
+    stop_kiosk
+    ;;
+  restart)
+    restart_kiosk
+    ;;
+  disable)
+    touch "$DISABLED_FILE"
+    echo "Autostart désactivé pour les prochaines sessions."
+    stop_kiosk
+    ;;
+  enable)
+    rm -f "$DISABLED_FILE"
+    echo "Autostart réactivé. Utilisez « pi-dashboard-kiosk start » pour l’ouvrir maintenant."
+    ;;
+  logs)
+    if [ -f "$LOG_FILE" ]; then
+      tail -n 60 "$LOG_FILE"
+    else
+      echo "Aucun journal pour le moment."
+    fi
+    ;;
+  help|-h|--help)
+    cat <<'EOF'
+Usage : pi-dashboard-kiosk [commande]
+
+Commandes :
+  status    Affiche l'état du lanceur, de Chromium et du backend.
+  start     Réactive et lance le kiosque (terminal de la session Desktop).
+  stop      Ferme Chromium et rend le bureau accessible (autostart conservé).
+  restart   Recharge Chromium s'il tourne, sinon arrête puis relance.
+  disable   Désactive le kiosque aux prochains démarrages (maintenance).
+  enable    Réactive le kiosque aux prochains démarrages.
+  logs      Affiche les 60 dernières lignes du journal kiosque.
+
+À exécuter sans sudo, avec l'utilisateur du bureau. Depuis le kiosque :
+Ctrl+Alt+F2, connexion, puis « pi-dashboard-kiosk stop ».
+EOF
+    ;;
+  *)
+    die "commande inconnue : $1 (essayez --help)"
+    ;;
+esac
