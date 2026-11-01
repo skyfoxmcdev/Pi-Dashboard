@@ -898,8 +898,11 @@ La release GitHub `v1.1.0` a aussi été testée de bout en bout avec le vrai
 updater : téléchargement HTTPS, contrôle de `SHA256SUMS`, extraction et
 validation de l'archive, exécution des tests de la release, sauvegarde d'une
 installation simulée en 1.0.0, application de la 1.1.0 et conservation d'une
-configuration personnelle factice. Le redémarrage systemd et le `/health` réel
-n'ont pas été exécutés sur cette machine Windows.
+configuration personnelle factice. La release `v1.2.0` a été récupérée depuis
+l'API GitHub par ce même updater : archive `pi-dashboard-1.2.0.tar.gz`,
+`SHA256SUMS` vérifié, extraction, validation de version et 109 tests exécutés
+sur l'archive publiée. Le redémarrage systemd et le `/health` réel n'ont pas été
+exécutés sur cette machine Windows.
 
 **Non vérifié** : installation réelle, paquets, Wayland/labwc, autologin,
 blanking, Chromium kiosque, RAM/FPS et température sur Raspberry Pi 3B+. Voir
