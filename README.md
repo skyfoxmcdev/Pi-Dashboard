@@ -901,8 +901,11 @@ installation simulée en 1.0.0, application de la 1.1.0 et conservation d'une
 configuration personnelle factice. La release `v1.2.0` a été récupérée depuis
 l'API GitHub par ce même updater : archive `pi-dashboard-1.2.0.tar.gz`,
 `SHA256SUMS` vérifié, extraction, validation de version et 109 tests exécutés
-sur l'archive publiée. Le redémarrage systemd et le `/health` réel n'ont pas été
-exécutés sur cette machine Windows.
+sur l'archive publiée. Un flux complet a aussi été simulé depuis une
+arborescence 1.1.0 : l'updater a appliqué la 1.2.0, conservé la configuration,
+copié la politique Chromium et les unités, puis laissé une sauvegarde 1.1.0.
+Le redémarrage systemd et le `/health` réel n'ont pas été exécutés sur cette
+machine Windows.
 
 **Non vérifié** : installation réelle, paquets, Wayland/labwc, autologin,
 blanking, Chromium kiosque, RAM/FPS et température sur Raspberry Pi 3B+. Voir
