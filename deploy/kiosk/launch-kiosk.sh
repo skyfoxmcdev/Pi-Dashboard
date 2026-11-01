@@ -167,6 +167,9 @@ CHROMIUM_FLAGS=(
   --disable-component-update
   --disable-sync
   --disable-features=Translate,TranslateUI,MediaRouter,OptimizationHints
+  --disable-translate
+  --lang=fr-FR
+  --accept-lang=fr-FR,fr
   --metrics-recording-only
   --password-store=basic
   --check-for-update-interval=31536000

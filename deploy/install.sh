@@ -18,9 +18,15 @@ SERVICE_USER="pi-dashboard"
 SERVICE_FILE="/etc/systemd/system/pi-dashboard.service"
 UPDATE_SERVICE_FILE="/etc/systemd/system/pi-dashboard-update.service"
 UPDATE_TIMER_FILE="/etc/systemd/system/pi-dashboard-update.timer"
+DISPLAY_SERVICE_FILE="/etc/systemd/system/pi-dashboard-display.service"
+DISPLAY_TIMER_FILE="/etc/systemd/system/pi-dashboard-display.timer"
 UPDATE_CONFIG_FILE="$CONFIG_DIR/update.json"
 UPDATE_COMMAND="/usr/local/bin/pi-dashboard-update"
+DISPLAY_COMMAND="/usr/local/bin/pi-dashboard-display"
 KIOSK_COMMAND="/usr/local/bin/pi-dashboard-kiosk"
+CHROMIUM_POLICY_DIR="/etc/chromium/policies/managed"
+CHROMIUM_POLICY_FILE="$CHROMIUM_POLICY_DIR/pi-dashboard.json"
+VENV_DIR="$STATE_DIR/venv"
 SLEEP_MARKER="$CONFIG_DIR/sleep-mask-units"
 MARK_BEGIN="# BEGIN pi-dashboard-kiosk"
 MARK_END="# END pi-dashboard-kiosk"
@@ -73,6 +79,9 @@ Options :
 
 Après l'installation, renseignez location.latitude et location.longitude dans
 /etc/pi-dashboard/config.json puis : sudo systemctl restart pi-dashboard
+
+PRONOTE : renseignez pronote.url, pronote.username et pronote.password dans
+/etc/pi-dashboard/config.json, puis : sudo systemctl restart pi-dashboard
 
 Mise à jour automatique : sudo pi-dashboard-update check
 EOF
@@ -187,6 +196,14 @@ python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)
 [[ -f "$SOURCE_DIR/config/config.example.json" ]] || die "config/config.example.json introuvable."
 [[ -f "$SOURCE_DIR/deploy/update/pi-dashboard-update" ]] \
   || die "commande de mise à jour introuvable dans $SOURCE_DIR."
+[[ -f "$SOURCE_DIR/requirements.txt" ]] \
+  || die "requirements.txt introuvable dans $SOURCE_DIR."
+[[ -f "$SOURCE_DIR/deploy/chromium/policies.json" ]] \
+  || die "politique Chromium introuvable dans $SOURCE_DIR."
+[[ -f "$SOURCE_DIR/deploy/systemd/pi-dashboard-display.service" ]] \
+  || die "service de planification écran introuvable dans $SOURCE_DIR."
+[[ -f "$SOURCE_DIR/deploy/systemd/pi-dashboard-display.timer" ]] \
+  || die "minuterie de planification écran introuvable dans $SOURCE_DIR."
 
 # Priorité à la configuration personnelle locale (ignorée par Git), puis à
 # l'exemple. --config permet d'importer un fichier depuis une autre machine.
@@ -328,8 +345,11 @@ if ((DRY_RUN == 1)); then
   else
     log "[dry-run] laisserait l'auto-update désactivé (aucun dépôt configuré)."
   fi
+  log "[dry-run] créerait le venv Python et installerait pronotepy."
+  log "[dry-run] installerait la minuterie de planification de l'écran."
   if ((SKIP_KIOSK == 0)); then
     log "[dry-run] configurerait l'autostart $AUTOSTART_MODE pour $KIOSK_USER."
+    log "[dry-run] désactiverait la traduction Chromium par politique."
   fi
   exit 0
 fi
@@ -365,6 +385,7 @@ else
   cp -a "$SOURCE_DIR/frontend" "$APP_DIR/"
   cp -a "$SOURCE_DIR/deploy" "$APP_DIR/"
   cp -a "$SOURCE_DIR/tests" "$APP_DIR/"
+  install -m 0644 "$SOURCE_DIR/requirements.txt" "$APP_DIR/requirements.txt"
   # Ne jamais copier config/config.json dans /opt : la configuration
   # personnelle reste uniquement dans /etc/pi-dashboard/config.json.
   install -d -m 0755 "$APP_DIR/config"
@@ -379,7 +400,31 @@ chmod 0755 "$APP_DIR/deploy/install.sh" \
   "$APP_DIR/deploy/uninstall.sh" \
   "$APP_DIR/deploy/kiosk/launch-kiosk.sh" \
   "$APP_DIR/deploy/kiosk/pi-dashboard-kiosk" \
-  "$APP_DIR/deploy/update/pi-dashboard-update"
+  "$APP_DIR/deploy/update/pi-dashboard-update" \
+  "$APP_DIR/deploy/display/pi-dashboard-display"
+
+# ------------------------------------------------------------ python runtime
+# pronotepy et ses dépendances vivent dans un venv hors de l'arborescence
+# applicative : une mise à jour du code ne remplace pas les paquets installés.
+log "Installation de l'environnement Python (pronotepy) dans $VENV_DIR."
+if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+  if ! python3 -m venv "$VENV_DIR" >/dev/null 2>&1; then
+    log "python3-venv absent : installation du paquet système."
+    if ((APT_UPDATED == 0)); then
+      apt-get update
+      APT_UPDATED=1
+    fi
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip \
+      || die "impossible d'installer python3-venv/python3-pip."
+    python3 -m venv "$VENV_DIR" \
+      || die "création du venv impossible dans $VENV_DIR."
+  fi
+fi
+"$VENV_DIR/bin/python" -m pip install \
+  --disable-pip-version-check --no-cache-dir --quiet \
+  -r "$APP_DIR/requirements.txt" \
+  || die "échec de l'installation des dépendances Python (pronotepy)."
+log "Dépendances Python installées."
 
 # -------------------------------------------------------------------- config
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -393,10 +438,17 @@ elif ((CONFIG_EXPLICIT == 1)) && ((CONFIG_IS_EXAMPLE == 0)); then
 else
   log "Configuration existante conservée : $CONFIG_FILE"
 fi
-chown root:root "$CONFIG_FILE" 2>/dev/null || true
+# Le fichier contient désormais les identifiants PRONOTE : lecture réservée
+# au service et au groupe de l'utilisateur du kiosque (pour lire le port).
+chown root:"$SERVICE_USER" "$CONFIG_FILE" 2>/dev/null || true
+chmod 0640 "$CONFIG_FILE" 2>/dev/null || true
+if ((SKIP_KIOSK == 0)) && [[ -n "$KIOSK_USER" ]]; then
+  usermod -aG "$SERVICE_USER" "$KIOSK_USER" 2>/dev/null \
+    || warn "impossible d'ajouter $KIOSK_USER au groupe $SERVICE_USER (lecture du port)."
+fi
 
 log "Validation de la configuration."
-if ! (cd "$APP_DIR" && python3 -m backend.main --config "$CONFIG_FILE" --check-config); then
+if ! (cd "$APP_DIR" && "$VENV_DIR/bin/python" -m backend.main --config "$CONFIG_FILE" --check-config); then
   die "la configuration $CONFIG_FILE est invalide. Corrigez-la avant de relancer l'installation."
 fi
 if python3 - "$CONFIG_FILE" <<'PY'
@@ -518,6 +570,33 @@ else
   fi
 fi
 
+# --------------------------------------------------------- screen schedule
+log "Installation de la planification de l'écran."
+install -m 0644 "$SOURCE_DIR/deploy/systemd/pi-dashboard-display.service" \
+  "$DISPLAY_SERVICE_FILE"
+install -m 0644 "$SOURCE_DIR/deploy/systemd/pi-dashboard-display.timer" \
+  "$DISPLAY_TIMER_FILE"
+install -m 0755 "$SOURCE_DIR/deploy/display/pi-dashboard-display" \
+  "$DISPLAY_COMMAND"
+systemctl daemon-reload
+if systemctl enable --now pi-dashboard-display.timer >/dev/null 2>&1; then
+  log "Planification écran active (vérification chaque minute)."
+  systemctl start pi-dashboard-display.service >/dev/null 2>&1 \
+    || warn "la première application de la planification écran a échoué."
+else
+  warn "la minuterie de planification écran n'a pas pu être activée."
+fi
+
+# ------------------------------------------------------------- chromium policy
+# Le dossier existe même en mode backend seul : il est déclaré dans
+# ReadWritePaths du service de mise à jour systemd.
+install -d -m 0755 "$CHROMIUM_POLICY_DIR"
+if ((SKIP_KIOSK == 0)); then
+  log "Désactivation de la bulle de traduction Chromium."
+  install -m 0644 "$SOURCE_DIR/deploy/chromium/policies.json" \
+    "$CHROMIUM_POLICY_FILE"
+fi
+
 # ------------------------------------------------------------ sleep / blanking
 # Le blanking visuel de la session (swayidle/wlopm ou xset) est neutralisé par
 # le lanceur kiosque. La mise en veille système est désactivée ici.
@@ -634,17 +713,19 @@ cat <<EOF
   Journal          : journalctl -u pi-dashboard -f
   Interface locale : http://127.0.0.1:${APP_PORT}
   Auto-update      : $([[ "$UPDATE_ENABLED" == "1" ]] && echo "activée (${UPDATE_REPOSITORY})" || echo "désactivée")
+  Écran            : sudo pi-dashboard-display --status
 
 Prochaines étapes :
   1. Vérifiez les coordonnées dans $CONFIG_FILE.
-  2. Lancez : sudo systemctl restart pi-dashboard
+  2. Renseignez PRONOTE dans $CONFIG_FILE (url, username, password).
+  3. Lancez : sudo systemctl restart pi-dashboard
 EOF
 
 if ((SKIP_KIOSK == 0)); then
   cat <<EOF
-  3. Redémarrez le Raspberry Pi (ou déconnectez/reconnectez la session
+  4. Redémarrez le Raspberry Pi (ou déconnectez/reconnectez la session
      graphique) pour que l'autostart du bureau soit pris en compte.
-  4. Vérifiez le kiosque : pi-dashboard-kiosk status
+  5. Vérifiez le kiosque : pi-dashboard-kiosk status
 
 Maintenance du kiosque (sans sudo, avec l'utilisateur $KIOSK_USER) :
   pi-dashboard-kiosk stop      ferme Chromium et laisse le bureau accessible
@@ -668,7 +749,8 @@ Mise à jour :
   sudo pi-dashboard-update check
   sudo pi-dashboard-update run       # télécharge et installe maintenant
 
-Tests : cd $APP_DIR && python3 -m unittest discover -s tests -v
+Tests : cd $APP_DIR && $VENV_DIR/bin/python -m unittest discover -s tests -v
+Planification écran : sudo pi-dashboard-display --status
 Désinstallation : sudo bash $APP_DIR/deploy/uninstall.sh
 
 EOF

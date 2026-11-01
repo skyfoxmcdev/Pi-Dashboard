@@ -88,10 +88,23 @@ class ServerTests(unittest.TestCase):
         self.assertIn("default-src 'self'", headers["Content-Security-Policy"])
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["Cache-Control"], "no-store")
-        for key in ("app", "generated_at", "location", "night", "weather", "system", "network", "ui"):
+        for key in (
+            "app",
+            "generated_at",
+            "location",
+            "night",
+            "weather",
+            "system",
+            "network",
+            "screen",
+            "timetable",
+            "ui",
+        ):
             self.assertIn(key, payload)
         self.assertEqual(payload["app"]["name"], "Pi Dashboard")
-        self.assertEqual(payload["app"]["version"], "1.1.0")
+        self.assertEqual(payload["app"]["version"], "1.2.0")
+        self.assertEqual(payload["timetable"]["state"], "disabled")
+        self.assertIn("off", payload["screen"])
         self.assertEqual(payload["weather"]["state"], "unconfigured")
         self.assertIsNone(payload["weather"]["current"])
         self.assertTrue(payload["night"]["active"])
@@ -103,7 +116,12 @@ class ServerTests(unittest.TestCase):
         status, headers, body = self.get("/")
         self.assertEqual(status, 200)
         self.assertIn("text/html", headers["Content-Type"])
-        self.assertIn("Pi Dashboard", body.decode("utf-8"))
+        html = body.decode("utf-8")
+        self.assertIn("Pi Dashboard", html)
+        self.assertIn("Emploi du temps", html)
+        self.assertIn("timetable-card", html)
+        self.assertNotIn("id=\"network-card\"", html)
+        self.assertNotIn("id=\"system-card\"", html)
         self.assertIn(b"/assets/js/app.js", body)
 
         status, headers, body = self.get("/assets/css/style.css")

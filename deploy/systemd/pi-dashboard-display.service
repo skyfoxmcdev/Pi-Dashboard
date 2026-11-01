@@ -1,0 +1,31 @@
+[Unit]
+Description=Pi Dashboard — application des plages horaires de l'écran
+Documentation=file:/opt/pi-dashboard/README.md
+After=multi-user.target
+ConditionPathExists=/etc/pi-dashboard/config.json
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/pi-dashboard
+ExecStart=/var/lib/pi-dashboard/venv/bin/python -m backend.display --config /etc/pi-dashboard/config.json --apply
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Nice=10
+TimeoutStartSec=30
+UMask=0022
+
+# Seul le contrôle HDMI est nécessaire : aucun accès réseau, aucun accès
+# aux données personnelles de l'utilisateur.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native

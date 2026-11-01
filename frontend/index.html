@@ -183,7 +183,7 @@
       </section>
     </main>
 
-    <section class="bottom-grid" aria-label="Prévisions et état du Raspberry Pi">
+    <section class="bottom-grid" aria-label="Prévisions et emploi du temps">
       <article class="card hourly" aria-labelledby="hourly-heading">
         <div class="card__header">
           <h2 class="card__title" id="hourly-heading">Prochaines heures</h2>
@@ -204,83 +204,18 @@
         </div>
       </article>
 
-      <article class="card monitor" id="system-card" aria-labelledby="system-heading">
-        <div class="card__header">
-          <h2 class="card__title" id="system-heading">Système</h2>
-          <span class="pill" id="health-label" data-level="unknown">Indisponible</span>
+      <article class="card timetable" id="timetable-card" aria-labelledby="timetable-heading">
+        <div class="card__header timetable__header">
+          <div class="timetable__heading">
+            <h2 class="card__title" id="timetable-heading">Emploi du temps</h2>
+            <p class="timetable__day" id="timetable-day">PRONOTE · chargement…</p>
+          </div>
+          <span class="pill" id="timetable-state" data-level="unknown">PRONOTE</span>
         </div>
-
-        <div class="meter">
-          <div class="meter__head">
-            <span class="meter__label"><span class="meter__icon" id="cpu-icon" aria-hidden="true"></span> Processeur</span>
-            <strong id="cpu-value">—</strong>
-          </div>
-          <div class="meter__track" role="progressbar" aria-label="Utilisation du processeur" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="cpu-progress">
-            <span class="meter__fill meter__fill--cyan" id="cpu-bar"></span>
-          </div>
+        <div class="timetable__list" id="timetable-list" role="list">
+          <p class="placeholder">Emploi du temps en attente.</p>
         </div>
-
-        <div class="meter">
-          <div class="meter__head">
-            <span class="meter__label"><span class="meter__icon" id="memory-icon" aria-hidden="true"></span> Mémoire</span>
-            <strong id="memory-value">—</strong>
-          </div>
-          <div class="meter__track" role="progressbar" aria-label="Utilisation de la mémoire" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="memory-progress">
-            <span class="meter__fill meter__fill--violet" id="memory-bar"></span>
-          </div>
-          <span class="meter__detail" id="memory-detail">—</span>
-        </div>
-
-        <div class="stat-grid">
-          <div class="stat">
-            <span class="stat__label"><span class="stat__icon" id="thermometer-icon" aria-hidden="true"></span> Temp. CPU</span>
-            <strong id="cpu-temperature">—</strong>
-          </div>
-          <div class="stat">
-            <span class="stat__label"><span class="stat__icon" id="uptime-icon" aria-hidden="true"></span> En marche</span>
-            <strong id="uptime">—</strong>
-          </div>
-        </div>
-
-        <p class="monitor__note" id="health-detail">En attente des métriques système.</p>
-      </article>
-
-      <article class="card network" id="network-card" aria-labelledby="network-heading">
-        <div class="card__header">
-          <h2 class="card__title" id="network-heading">Réseau</h2>
-          <span class="pill" id="wifi-state" data-level="unknown">—</span>
-        </div>
-
-        <div class="network__wifi">
-          <span class="network__icon" id="network-wifi-icon" aria-hidden="true"></span>
-          <div class="network__wifi-copy">
-            <span class="network__label">Réseau Wi-Fi</span>
-            <strong class="network__ssid" id="ssid">—</strong>
-          </div>
-          <div class="signal" aria-label="Qualité du signal">
-            <span class="signal__value" id="signal-value">—</span>
-            <span class="signal__bars" id="signal-bars" data-level="0" aria-hidden="true">
-              <i></i><i></i><i></i><i></i>
-            </span>
-          </div>
-        </div>
-
-        <div class="network__rows">
-          <div class="network__row">
-            <span class="network__row-label">Adresse IP</span>
-            <strong id="ip-address">—</strong>
-          </div>
-          <div class="network__row">
-            <span class="network__row-label">Interface</span>
-            <strong id="network-interface">—</strong>
-          </div>
-          <div class="network__row">
-            <span class="network__row-label">Dernière vérification</span>
-            <strong id="network-checked">—</strong>
-          </div>
-        </div>
-
-        <p class="network__note">État Internet déduit de la dernière requête météo, sans requête réseau supplémentaire.</p>
+        <p class="timetable__footer" id="timetable-footer">—</p>
       </article>
     </section>
 

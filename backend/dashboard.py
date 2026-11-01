@@ -12,7 +12,9 @@ from . import APP_NAME, __version__
 from .config import display_timezone
 from .night import is_night_now, local_now
 from .network import NetworkInfo
+from .screen_schedule import is_display_off, next_change
 from .system_metrics import SystemMetrics
+from .timetable import TimetableService
 from .weather import WeatherService
 
 
@@ -28,6 +30,7 @@ class DashboardApp:
         weather: WeatherService | None = None,
         metrics: SystemMetrics | None = None,
         network: NetworkInfo | None = None,
+        timetable: TimetableService | None = None,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] | None = None,
     ) -> None:
@@ -37,21 +40,26 @@ class DashboardApp:
         self.weather = weather or WeatherService(config, logger=self.logger)
         self.metrics = metrics or SystemMetrics(config["system"])
         self.network = network or NetworkInfo()
+        self.timetable = timetable or TimetableService(config, logger=self.logger)
         self._clock = clock
         self._now = now or (lambda: local_now(config))
         self._started_monotonic = clock()
         self._started_at = self._now().isoformat(timespec="seconds")
         self._started = False
+        self._screen_cache_key: tuple[int, int, int] | None = None
+        self._screen_cache: tuple[bool, Any] | None = None
 
     def start_background(self) -> None:
         if self._started:
             return
         self.metrics.prime()
         self.weather.start()
+        self.timetable.start()
         self._started = True
 
     def stop_background(self) -> None:
         self.weather.stop()
+        self.timetable.stop()
         self._started = False
 
     def _uptime(self) -> int:
@@ -70,6 +78,14 @@ class DashboardApp:
             if night_config["enabled"]
             else False
         )
+        screen_key = (now.toordinal(), now.hour, now.minute)
+        if screen_key != self._screen_cache_key:
+            self._screen_cache_key = screen_key
+            self._screen_cache = (
+                is_display_off(now, self.config["screen_schedule"]),
+                next_change(now, self.config["screen_schedule"]),
+            )
+        screen_off, screen_next = self._screen_cache or (False, None)
         location = self.config["location"]
 
         return {
@@ -94,6 +110,15 @@ class DashboardApp:
             "weather": weather,
             "system": system,
             "network": network,
+            "screen": {
+                "schedule_enabled": self.config["screen_schedule"]["enabled"],
+                "off": screen_off,
+                "next_change_at": screen_next[0].isoformat(timespec="minutes")
+                if screen_next
+                else None,
+                "next_change_off": screen_next[1] if screen_next else None,
+            },
+            "timetable": self.timetable.snapshot(),
             "ui": {
                 "poll_seconds": self.config["ui"]["poll_seconds"],
             },

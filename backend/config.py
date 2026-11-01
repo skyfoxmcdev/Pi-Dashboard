@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import urllib.parse
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -42,6 +43,34 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "start": "22:00",
         "end": "07:00",
     },
+    "screen_schedule": {
+        "enabled": True,
+        "off_periods": [
+            {
+                "days": ["mon", "tue", "wed", "thu", "fri"],
+                "start": "21:40",
+                "end": "06:45",
+            },
+            {
+                "days": ["mon", "tue", "wed", "thu", "fri"],
+                "start": "07:20",
+                "end": "18:00",
+            },
+            {"days": ["sat"], "start": "22:00", "end": "11:00"},
+            {"days": ["sun"], "start": "21:40", "end": "06:40"},
+        ],
+    },
+    "pronote": {
+        "enabled": False,
+        "academy": "",
+        "ent": "",
+        "login": "direct",
+        "url": "",
+        "username": "",
+        "password": "",
+        "refresh_seconds": 900,
+        "days_ahead": 7,
+    },
     "system": {
         "refresh_seconds": 2,
         "thresholds": {
@@ -61,6 +90,38 @@ DEFAULT_CONFIG: dict[str, Any] = {
 TEMPERATURE_UNITS = {"celsius", "fahrenheit"}
 WIND_SPEED_UNITS = {"kmh", "ms", "mph", "kn"}
 PRECIPITATION_UNITS = {"mm", "inch"}
+
+DAY_ALIASES = {
+    "mon": 0,
+    "monday": 0,
+    "lun": 0,
+    "lundi": 0,
+    "tue": 1,
+    "tuesday": 1,
+    "mar": 1,
+    "mardi": 1,
+    "wed": 2,
+    "wednesday": 2,
+    "mer": 2,
+    "mercredi": 2,
+    "thu": 3,
+    "thursday": 3,
+    "jeu": 3,
+    "jeudi": 3,
+    "fri": 4,
+    "friday": 4,
+    "ven": 4,
+    "vendredi": 4,
+    "sat": 5,
+    "saturday": 5,
+    "sam": 5,
+    "samedi": 5,
+    "sun": 6,
+    "sunday": 6,
+    "dim": 6,
+    "dimanche": 6,
+}
+PRONOTE_ENT_RE = re.compile(r"^[a-z][a-z0-9_]{1,60}$")
 
 
 class ConfigError(ValueError):
@@ -149,6 +210,99 @@ def _validate_time(value: Any, field: str) -> str:
     if not isinstance(value, str) or not TIME_PATTERN.match(value):
         raise ConfigError(f"{field} doit être au format HH:MM (24 heures).")
     return value
+
+
+def _optional_string(value: Any, field: str, maximum: int) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ConfigError(f"{field} doit être une chaîne de caractères.")
+    text = value.strip()
+    if len(text) > maximum:
+        raise ConfigError(f"{field} ne peut pas dépasser {maximum} caractères.")
+    return text
+
+
+def _validate_screen_schedule(raw: dict[str, Any]) -> dict[str, Any]:
+    enabled = _boolean(raw.get("enabled"), "screen_schedule.enabled")
+    periods_raw = raw.get("off_periods")
+    if not isinstance(periods_raw, list):
+        raise ConfigError("screen_schedule.off_periods doit être une liste.")
+    if len(periods_raw) > 32:
+        raise ConfigError("screen_schedule.off_periods ne peut pas dépasser 32 plages.")
+
+    periods: list[dict[str, Any]] = []
+    for index, item in enumerate(periods_raw):
+        field = f"screen_schedule.off_periods[{index}]"
+        period = _mapping(item, field)
+        days_raw = period.get("days")
+        if not isinstance(days_raw, list) or not days_raw:
+            raise ConfigError(f"{field}.days doit être une liste non vide.")
+        days: list[int] = []
+        for day in days_raw:
+            if not isinstance(day, str):
+                raise ConfigError(f"{field}.days doit contenir des noms de jours.")
+            key = day.strip().casefold()
+            if key not in DAY_ALIASES:
+                raise ConfigError(
+                    f"{field}.days contient un jour inconnu : {day!r}. "
+                    "Utilisez mon, tue, wed, thu, fri, sat ou sun."
+                )
+            value = DAY_ALIASES[key]
+            if value not in days:
+                days.append(value)
+        start = _validate_time(period.get("start"), f"{field}.start")
+        end = _validate_time(period.get("end"), f"{field}.end")
+        if start == end:
+            raise ConfigError(f"{field}.start et {field}.end doivent être différents.")
+        periods.append({"days": days, "start": start, "end": end})
+
+    return {"enabled": enabled, "off_periods": periods}
+
+
+def _validate_pronote(raw: dict[str, Any]) -> dict[str, Any]:
+    enabled = _boolean(raw.get("enabled"), "pronote.enabled")
+    academy = _optional_string(raw.get("academy"), "pronote.academy", 80)
+    ent = _optional_string(raw.get("ent"), "pronote.ent", 80)
+    if ent and not PRONOTE_ENT_RE.fullmatch(ent):
+        raise ConfigError(
+            "pronote.ent doit être un nom de fonction pronotepy.ent "
+            "(ex. ent_auvergnerhonealpe)."
+        )
+    login = _optional_string(raw.get("login"), "pronote.login", 16).casefold()
+    if login not in {"direct", "ent"}:
+        raise ConfigError("pronote.login doit valoir direct ou ent.")
+    url = _optional_string(raw.get("url"), "pronote.url", 2048)
+    if url:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ConfigError("pronote.url doit être une URL HTTPS complète.")
+        if parsed.username or parsed.password or parsed.fragment:
+            raise ConfigError("pronote.url ne doit contenir ni identifiants ni fragment.")
+    username = _optional_string(raw.get("username"), "pronote.username", 200)
+    password = raw.get("password", "")
+    if password is None:
+        password = ""
+    if not isinstance(password, str):
+        raise ConfigError("pronote.password doit être une chaîne de caractères.")
+    if len(password) > 500:
+        raise ConfigError("pronote.password ne peut pas dépasser 500 caractères.")
+    refresh_seconds = _integer(
+        raw.get("refresh_seconds"), "pronote.refresh_seconds", 300, 86400
+    )
+    days_ahead = _integer(raw.get("days_ahead"), "pronote.days_ahead", 1, 14)
+
+    return {
+        "enabled": enabled,
+        "academy": academy,
+        "ent": ent,
+        "login": login,
+        "url": url,
+        "username": username,
+        "password": password,
+        "refresh_seconds": refresh_seconds,
+        "days_ahead": days_ahead,
+    }
 
 
 def _validate_thresholds(raw: dict[str, Any]) -> dict[str, Any]:
@@ -305,6 +459,28 @@ def validate_config(raw: dict[str, Any], base_dir: Path) -> tuple[dict[str, Any]
     night_start = _validate_time(night_mode.get("start"), "night_mode.start")
     night_end = _validate_time(night_mode.get("end"), "night_mode.end")
 
+    screen_schedule = _validate_screen_schedule(
+        _mapping(config["screen_schedule"], "screen_schedule")
+    )
+
+    pronote = _validate_pronote(_mapping(config["pronote"], "pronote"))
+    if pronote["enabled"]:
+        missing = [
+            name
+            for name in ("url", "username", "password")
+            if not pronote[name]
+        ]
+        if missing:
+            warnings.append(
+                "PRONOTE activé mais incomplet ("
+                + ", ".join(f"pronote.{name}" for name in missing)
+                + ") : la carte affichera les instructions de configuration."
+            )
+        if pronote["login"] == "ent" and not pronote["academy"] and not pronote["ent"]:
+            warnings.append(
+                "pronote.login vaut ent mais aucune académie ni ent n'est renseigné."
+            )
+
     system = _mapping(config["system"], "system")
     system_refresh = _integer(
         system.get("refresh_seconds"), "system.refresh_seconds", 1, 60
@@ -336,6 +512,8 @@ def validate_config(raw: dict[str, Any], base_dir: Path) -> tuple[dict[str, Any]
             "start": night_start,
             "end": night_end,
         },
+        "screen_schedule": screen_schedule,
+        "pronote": pronote,
         "system": {
             "refresh_seconds": system_refresh,
             "thresholds": {k: float(v) for k, v in thresholds.items()},

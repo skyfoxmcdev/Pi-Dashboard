@@ -400,6 +400,10 @@ a {
     animation-delay: 0.24s;
   }
 
+  .bottom-grid .card:nth-child(3) {
+    animation-delay: 0.24s;
+  }
+
   .bottom-grid .card:nth-child(4) {
     animation-delay: 0.28s;
   }
@@ -887,10 +891,18 @@ a {
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.56fr) minmax(0, 1.27fr) minmax(0, 0.97fr) minmax(0, 0.97fr);
+  grid-template-columns: minmax(0, 1.24fr) minmax(0, 1.03fr) minmax(0, 1.83fr);
   gap: clamp(14px, 1.4vw, 22px);
-  height: clamp(286px, 30.9vh, 336px);
+  height: clamp(296px, 32.8vh, 360px);
   min-height: 0;
+}
+
+.bottom-grid .card[hidden] {
+  display: none;
+}
+
+.bottom-grid:has(.timetable[hidden]) {
+  grid-template-columns: minmax(0, 1.24fr) minmax(0, 1fr);
 }
 
 .bottom-grid .card {
@@ -1116,6 +1128,203 @@ a {
 .day-row__min {
   color: var(--faint);
   font-size: 12px;
+}
+
+/* timetable */
+
+.timetable__header {
+  align-items: flex-start;
+  margin-bottom: clamp(7px, 1vh, 11px);
+}
+
+.timetable__heading {
+  min-width: 0;
+}
+
+.timetable__day {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timetable__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: rgba(151, 173, 214, 0.25) transparent;
+  scrollbar-width: thin;
+}
+
+.timetable__list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.timetable__list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(151, 173, 214, 0.22);
+}
+
+.lesson {
+  display: grid;
+  grid-template-columns: 51px 10px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 9px;
+  min-height: 0;
+  padding: clamp(2px, 0.42vh, 4px) 2px;
+  border-bottom: 1px solid rgba(151, 173, 214, 0.07);
+}
+
+.lesson:last-child {
+  border-bottom: 0;
+}
+
+.lesson__time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.lesson__time strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lesson__time span {
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+.lesson__rail {
+  width: 2px;
+  margin: 3px auto;
+  border-radius: 999px;
+  background: rgba(151, 173, 214, 0.16);
+}
+
+.lesson__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lesson__top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.lesson__subject {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson__meta {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson__badge {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lesson__badge[data-level="ok"] {
+  border-color: rgba(118, 226, 189, 0.22);
+  background: rgba(118, 226, 189, 0.07);
+  color: var(--green);
+}
+
+.lesson__badge[data-level="warn"] {
+  border-color: rgba(255, 203, 131, 0.22);
+  background: rgba(255, 203, 131, 0.07);
+  color: var(--amber);
+}
+
+.lesson__badge[data-level="critical"] {
+  border-color: rgba(255, 143, 156, 0.24);
+  background: rgba(255, 143, 156, 0.07);
+  color: var(--danger);
+}
+
+.lesson--current .lesson__rail {
+  background: linear-gradient(180deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 9px rgba(123, 216, 245, 0.35);
+}
+
+.lesson--current .lesson__subject {
+  color: var(--cyan);
+}
+
+.lesson--next .lesson__rail {
+  background: rgba(169, 154, 255, 0.55);
+}
+
+.lesson--canceled .lesson__subject {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 143, 156, 0.55);
+}
+
+.lesson--canceled .lesson__rail {
+  background: rgba(255, 143, 156, 0.24);
+}
+
+.timetable__message {
+  margin: auto;
+  max-width: 34ch;
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.timetable__message--error {
+  color: var(--danger);
+}
+
+.timetable__footer {
+  margin: 7px 0 0;
+  padding-top: 7px;
+  overflow: hidden;
+  border-top: 1px solid rgba(151, 173, 214, 0.07);
+  color: var(--faint);
+  font-size: 9.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* system */
@@ -1649,6 +1858,11 @@ html.night .attribution:hover {
     min-height: 258px;
   }
 
+  .bottom-grid .timetable {
+    grid-column: 1 / -1;
+    min-height: 300px;
+  }
+
   .network__ssid {
     max-width: 16vw;
   }
@@ -1701,11 +1915,14 @@ html.night .attribution:hover {
     font-size: clamp(72px, 12vw, 110px);
   }
 
-  .bottom-grid {
+  .bottom-grid,
+  .bottom-grid:has(.timetable[hidden]) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .bottom-grid .card {
+  .bottom-grid .card,
+  .bottom-grid .timetable {
+    grid-column: auto;
     min-height: 236px;
   }
 

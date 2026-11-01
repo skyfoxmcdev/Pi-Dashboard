@@ -11,7 +11,7 @@ Type=simple
 User=pi-dashboard
 Group=pi-dashboard
 WorkingDirectory=/opt/pi-dashboard
-ExecStart=/usr/bin/python3 -m backend.main --config /etc/pi-dashboard/config.json
+ExecStart=/var/lib/pi-dashboard/venv/bin/python -m backend.main --config /etc/pi-dashboard/config.json
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 StateDirectory=pi-dashboard

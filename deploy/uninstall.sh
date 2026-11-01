@@ -13,6 +13,10 @@ SERVICE_FILE="/etc/systemd/system/pi-dashboard.service"
 UPDATE_SERVICE_FILE="/etc/systemd/system/pi-dashboard-update.service"
 UPDATE_TIMER_FILE="/etc/systemd/system/pi-dashboard-update.timer"
 UPDATE_COMMAND="/usr/local/bin/pi-dashboard-update"
+DISPLAY_SERVICE_FILE="/etc/systemd/system/pi-dashboard-display.service"
+DISPLAY_TIMER_FILE="/etc/systemd/system/pi-dashboard-display.timer"
+DISPLAY_COMMAND="/usr/local/bin/pi-dashboard-display"
+CHROMIUM_POLICY_FILE="/etc/chromium/policies/managed/pi-dashboard.json"
 KIOSK_COMMAND="/usr/local/bin/pi-dashboard-kiosk"
 SLEEP_MARKER="$CONFIG_DIR/sleep-mask-units"
 
@@ -83,10 +87,14 @@ log "Arrêt de la minuterie de mise à jour automatique."
 systemctl disable --now pi-dashboard-update.timer 2>/dev/null || true
 systemctl stop pi-dashboard-update.service 2>/dev/null || true
 
-log "Arrêt et désactivation du service."
+log "Arrêt et désactivation du service et de la planification écran."
 systemctl stop pi-dashboard.service 2>/dev/null || true
 systemctl disable pi-dashboard.service 2>/dev/null || true
+systemctl stop pi-dashboard-display.timer pi-dashboard-display.service 2>/dev/null || true
+systemctl disable pi-dashboard-display.timer 2>/dev/null || true
 rm -f "$SERVICE_FILE" "$UPDATE_SERVICE_FILE" "$UPDATE_TIMER_FILE" "$UPDATE_COMMAND"
+rm -f "$DISPLAY_SERVICE_FILE" "$DISPLAY_TIMER_FILE" "$DISPLAY_COMMAND" \
+  "$CHROMIUM_POLICY_FILE"
 systemctl daemon-reload
 
 if [[ -n "$KIOSK_USER" ]] && command -v runuser >/dev/null 2>&1 && [[ -x "$KIOSK_COMMAND" ]]; then
@@ -122,7 +130,7 @@ log "Suppression de l'application $APP_DIR."
 rm -rf "$APP_DIR"
 
 if ((PURGE == 1)); then
-  log "Suppression de la configuration et du cache."
+  log "Suppression de la configuration, du cache et du venv Python."
   rm -rf "$CONFIG_DIR" "$STATE_DIR"
   if id -u "$SERVICE_USER" >/dev/null 2>&1; then
     userdel "$SERVICE_USER" 2>/dev/null || warn "impossible de supprimer l'utilisateur $SERVICE_USER."

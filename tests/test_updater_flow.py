@@ -22,6 +22,7 @@ def _make_tree(root: Path, version: str, text: str) -> None:
     (root / "deploy" / "install.sh").write_text("", encoding="utf-8")
     (root / "README.md").write_text(text, encoding="utf-8")
     (root / "LICENSE").write_text("MIT\n", encoding="utf-8")
+    (root / "requirements.txt").write_text("pronotepy\n", encoding="utf-8")
 
 
 class ApplyAndRollbackTests(unittest.TestCase):

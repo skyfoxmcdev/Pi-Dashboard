@@ -21,13 +21,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
       - name: Validate
         run: |
           python -m compileall -q backend tests
           python -m unittest discover -s tests -v
           bash -n deploy/install.sh deploy/uninstall.sh \
             deploy/kiosk/launch-kiosk.sh deploy/kiosk/pi-dashboard-kiosk \
-            deploy/update/pi-dashboard-update
+            deploy/update/pi-dashboard-update \
+            deploy/display/pi-dashboard-display
+          node --check frontend/assets/js/app.js
 
       - name: Verify tag and build archive
         shell: bash

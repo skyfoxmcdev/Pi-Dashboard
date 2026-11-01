@@ -4,14 +4,16 @@ Tableau de bord d'ambiance **Dark Ambient** pour **Raspberry Pi 3B+** avec
 **Raspberry Pi OS with Desktop 64-bit**, écran HDMI **1920×1080** et Chromium en
 mode kiosque.
 
-Le projet est volontairement léger : backend **Python 3 sans dépendance**, API
-HTTP locale, collecte météo en arrière-plan avec cache disque, métriques Linux
-et frontend **HTML/CSS/JavaScript natif** sans framework ni CDN. L'interface
-utilise l'environnement graphique déjà fourni par Raspberry Pi OS Desktop ;
-l'installateur n'installe ni Xorg, ni Openbox, ni LightDM, ni un second bureau.
-Les mises à jour sont **automatiques** : un service systemd vérifie chaque jour
-la dernière **release GitHub** et installe l'archive après contrôle SHA-256,
-tests et validation de `/health`, avec sauvegarde et rollback.
+Le projet est volontairement léger : backend **Python 3**, API HTTP locale,
+collecte météo en arrière-plan avec cache disque, emploi du temps **PRONOTE**
+via `pronotepy`, métriques Linux et frontend **HTML/CSS/JavaScript natif** sans
+framework ni CDN. L'interface utilise l'environnement graphique déjà fourni par
+Raspberry Pi OS Desktop ; l'installateur n'installe ni Xorg, ni Openbox, ni
+LightDM, ni un second bureau. Les mises à jour sont **automatiques** : un
+service systemd vérifie chaque jour la dernière **release GitHub** et installe
+l'archive après contrôle SHA-256, tests et validation de `/health`, avec
+sauvegarde et rollback. Une minuterie distincte éteint la sortie HDMI selon les
+plages horaires configurées.
 
 > **État de livraison** : dépôt portable complet + installateur + auto-update.
 > Aucune image système `.img` prête à flasher n'est fournie, et aucun test n'a
@@ -21,7 +23,7 @@ tests et validation de `/health`, avec sauvegarde et rollback.
 > prévu par l'autostart XDG et `xset`.
 
 Dépôt : <https://github.com/skyfoxmcdev/Pi-Dashboard>  
-Release initiale : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.1.0>
+Dernière release : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.2.0>
 
 ---
 
@@ -34,17 +36,19 @@ Release initiale : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.
 5. [Configuration](#configuration)
 6. [Services et commandes](#services-et-commandes)
 7. [Kiosque, veille et maintenance](#kiosque-veille-et-maintenance)
-8. [Mode nuit](#mode-nuit)
-9. [Fonctionnement hors ligne](#fonctionnement-hors-ligne)
-10. [API locale](#api-locale)
-11. [Tests exécutés](#tests-exécutés)
-12. [Mise à jour](#mise-à-jour)
-13. [Désinstallation](#désinstallation)
-14. [Problèmes fréquents](#problèmes-fréquents)
-15. [Limites connues](#limites-connues)
-16. [Validation matérielle](#validation-matérielle)
-17. [Code portable, installation et image système](#code-portable-installation-et-image-système)
-18. [Licences et attributions](#licences-et-attributions)
+8. [Planification de l'écran](#planification-de-lécran)
+9. [Mode nuit](#mode-nuit)
+10. [Emploi du temps PRONOTE](#emploi-du-temps-pronote)
+11. [Fonctionnement hors ligne](#fonctionnement-hors-ligne)
+12. [API locale](#api-locale)
+13. [Tests exécutés](#tests-exécutés)
+14. [Mise à jour](#mise-à-jour)
+15. [Désinstallation](#désinstallation)
+16. [Problèmes fréquents](#problèmes-fréquents)
+17. [Limites connues](#limites-connues)
+18. [Validation matérielle](#validation-matérielle)
+19. [Code portable, installation et image système](#code-portable-installation-et-image-système)
+20. [Licences et attributions](#licences-et-attributions)
 
 ---
 
@@ -56,10 +60,17 @@ Release initiale : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.
 - Huit prochaines heures : heure, icône, température, probabilité de pluie.
 - Cinq prochains jours : condition, icône, températures minimale et maximale.
 - Lever, coucher du soleil et durée du jour.
-- Wi-Fi : disponibilité, connexion, SSID, qualité du signal, interface.
-- Adresse IP locale et état Internet déduit de la dernière requête météo.
-- CPU, mémoire, température du processeur, uptime, charge système collectée.
-- Indicateur de santé système dans la barre supérieure et la carte Système.
+- Wi-Fi et état Internet visibles dans la barre supérieure ; l'adresse IP et
+  les métriques détaillées restent disponibles dans `/api/status`.
+- CPU, mémoire, température du processeur, uptime et charge collectés pour
+  l'indicateur de santé de la barre supérieure.
+- Emploi du temps **PRONOTE** de la journée, ou du prochain jour de cours
+  lorsque la dernière heure est passée : matière, horaire, salle, professeur,
+  groupe, cours annulé et contrôle.
+- Académie configurable (`pronote.academy`) et connexion ENT ou directe.
+- Planification hebdomadaire de la sortie HDMI : plages de nuit et pauses de
+  journée, service systemd indépendant du kiosque.
+- Bulle de traduction Chromium désactivée par politique d'entreprise.
 - Mode nuit visuel automatique, plages configurables traversant minuit.
 - Interface Dark Ambient responsive, composition native 1920×1080, sans
   défilement vertical à cette résolution.
@@ -86,7 +97,8 @@ Release initiale : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.
 | Session principale | Raspberry Pi OS Desktop Trixie : **Wayland/labwc** |
 | Session historique | Bookworm/X11/LXDE via autostart XDG ; Wayfire non garanti |
 | Navigateur | `chromium`, binaire `/usr/bin/chromium` |
-| Backend | Python 3.9+ (3.11 Bookworm, 3.13 Trixie), bibliothèque standard |
+| Backend | Python 3.10+ (3.11 Bookworm, 3.13 Trixie), bibliothèque standard + `pronotepy` |
+| Dépendances Python | venv `/var/lib/pi-dashboard/venv`, installé par `install.sh` |
 | Service | `systemd`, utilisateur système `pi-dashboard` |
 | Écran | HDMI 1920×1080, mise en page prioritaire à cette résolution |
 
@@ -117,7 +129,11 @@ fait par le navigateur en dehors de `/api/status`. Aucun CDN n'est requis.
 
 - La météo est récupérée par un **thread backend** toutes les 15 minutes par
   défaut ; le frontend ne contacte jamais Open-Meteo.
+- PRONOTE est interrogé par un **thread backend** séparé, avec un cache de
+  15 minutes par défaut ; un échec conserve le dernier emploi du temps.
 - Les métriques `/proc` et `/sys` sont mises en cache 2 secondes.
+- La planification HDMI est évaluée chaque minute par un service oneshot
+  `pi-dashboard-display.service`, sans requête réseau.
 - Le Wi-Fi et l'IP sont mis en cache 15 secondes pour éviter de lancer des
   commandes à chaque sondage.
 - Aucune commande n'utilise `shell=True`. Les commandes réseau sont des listes
@@ -150,11 +166,14 @@ pi-dashboard/
 │   ├── __init__.py          # version et nom de l'application
 │   ├── config.py            # chargement, validation, fuseau, valeurs par défaut
 │   ├── dashboard.py         # assemblage du contrat /api/status
+│   ├── display.py           # application HDMI de la planification écran
 │   ├── http_server.py       # serveur local, routes, fichiers statiques, en-têtes
 │   ├── main.py              # CLI, signaux, cycle de vie
 │   ├── network.py           # Wi-Fi, SSID, signal, IP
 │   ├── night.py             # plage nocturne et traversée de minuit
+│   ├── screen_schedule.py   # calcul des plages écran hebdomadaires
 │   ├── system_metrics.py    # CPU, RAM, température, uptime, santé
+│   ├── timetable.py         # PRONOTE, académies, cache, jour affiché
 │   ├── updater.py           # releases GitHub, SHA-256, tests, rollback
 │   ├── weather.py           # Open-Meteo, cache, thread de rafraîchissement
 │   └── weather_codes.py     # WMO → français/icônes, directions du vent
@@ -168,12 +187,16 @@ pi-dashboard/
 │       └── js/app.js
 ├── config/
 │   ├── config.example.json  # modèle public
-│   └── config.json          # local, ignoré par Git (coordonnées personnelles)
+│   └── config.json          # local, ignoré par Git (coordonnées et PRONOTE)
 ├── deploy/
 │   ├── install.sh
 │   ├── uninstall.sh
+│   ├── chromium/policies.json
+│   ├── display/pi-dashboard-display
 │   ├── systemd/
 │   │   ├── pi-dashboard.service
+│   │   ├── pi-dashboard-display.service
+│   │   ├── pi-dashboard-display.timer
 │   │   ├── pi-dashboard-update.service
 │   │   └── pi-dashboard-update.timer
 │   ├── update/
@@ -184,6 +207,7 @@ pi-dashboard/
 │       ├── pi-dashboard-kiosk
 │       └── pi-dashboard-kiosk.desktop
 ├── .github/workflows/release.yml
+├── requirements.txt         # pronotepy, installé dans le venv
 ├── tests/
 │   ├── fixtures/open_meteo.json
 │   ├── helpers.py
@@ -246,11 +270,17 @@ réalise ces opérations :
 - installe uniquement `chromium` s'il manque (aucun second bureau) ;
 - crée l'utilisateur système `pi-dashboard` ;
 - copie l'application dans `/opt/pi-dashboard` ;
+- crée le venv `/var/lib/pi-dashboard/venv` et y installe `pronotepy` et ses
+  dépendances ;
 - crée `/etc/pi-dashboard/config.json` à partir de `config/config.json` s'il
   existe, sinon de l'exemple, sans écraser une configuration existante ;
+- protège la configuration en `0640 root:pi-dashboard` (elle peut contenir le
+  mot de passe PRONOTE) et ajoute l'utilisateur du kiosque au groupe de lecture ;
 - valide la configuration avec le backend ;
 - installe, active et démarre `pi-dashboard.service` ;
 - installe `pi-dashboard-update` et sa minuterie quotidienne ;
+- installe `pi-dashboard-display` et sa minuterie de planification écran ;
+- désactive la bulle de traduction Chromium par politique ;
 - masque les cibles systemd de mise en veille ;
 - configure l'autostart du kiosque pour l'utilisateur Desktop
   (`~/.config/labwc/autostart` en labwc, autostart XDG sinon) ;
@@ -336,6 +366,59 @@ l'autostart du bureau se déclenche :
 sudo reboot
 ```
 
+### Configurer PRONOTE
+
+La carte « Emploi du temps » utilise `pronotepy` et les identifiants PRONOTE de
+l'élève. Le mot de passe reste uniquement dans
+`/etc/pi-dashboard/config.json` (droits `0640`) et n'est jamais envoyé au
+navigateur ni affiché par l'API.
+
+1. Récupérez l'URL directe de votre PRONOTE, celle qui se termine par
+   `eleve.html`, `parent.html` ou équivalent. Elle ne doit pas contenir de
+   paramètres de requête.
+2. Renseignez `pronote.url`, `pronote.username` et `pronote.password`.
+3. Choisissez le mode de connexion :
+   - `"login": "ent"` pour passer par l'ENT de l'académie. `pronote.academy`
+     vaut par exemple `"Grenoble"` ; l'académie de Grenoble utilise l'ENT
+     Auvergne-Rhône-Alpes (`ent_auvergnerhonealpe`).
+   - `"login": "direct"` si votre établissement accepte l'identifiant PRONOTE
+     directement, sans ENT.
+4. Si l'académie n'est pas reconnue, indiquez la fonction `pronotepy.ent` dans
+   `pronote.ent` (par exemple `"ent_auvergnerhonealpe"`).
+
+```json
+"pronote": {
+  "enabled": true,
+  "academy": "Grenoble",
+  "ent": "",
+  "login": "ent",
+  "url": "https://VOTRE-ETABLISSEMENT.index-education.net/pronote/eleve.html",
+  "username": "VOTRE_IDENTIFIANT",
+  "password": "VOTRE_MOT_DE_PASSE",
+  "refresh_seconds": 900,
+  "days_ahead": 7
+}
+```
+
+Puis :
+
+```bash
+sudo systemctl restart pi-dashboard
+journalctl -u pi-dashboard -n 40 --no-pager
+```
+
+La carte affiche l'état `À configurer` tant que les trois champs sont vides ou
+incomplets. En cas d'échec de connexion, le dernier emploi du temps connu reste
+affiché avec le badge `Hors ligne` ; sans cache, l'erreur PRONOTE est affichée
+sans faire tomber le reste du dashboard. Le rafraîchissement est de 15 minutes
+par défaut.
+
+> Les identifiants PRONOTE sont sensibles. Ne les mettez jamais dans
+> `config/config.example.json`, dans un dépôt Git, dans une capture d'écran ou
+> dans une conversation. Le fichier local `config/config.json` est ignoré par
+> Git ; sur le Pi, il est lisible uniquement par root et le groupe
+> `pi-dashboard`.
+
 ### Vérification rapide
 
 ```bash
@@ -372,6 +455,16 @@ message est écrit dans le journal.
 | `night_mode.enabled` | `true` | booléen |
 | `night_mode.start` | `"22:00"` | `HH:MM`, 24 h |
 | `night_mode.end` | `"07:00"` | `HH:MM` ; peut traverser minuit |
+| `screen_schedule.enabled` | `true` | active la coupure HDMI planifiée |
+| `screen_schedule.off_periods` | 4 plages | liste de plages `days`, `start`, `end` |
+| `pronote.enabled` | `false` | active la carte PRONOTE |
+| `pronote.academy` | `""` | académie, ex. `Grenoble` |
+| `pronote.ent` | `""` | override d'une fonction `pronotepy.ent` |
+| `pronote.login` | `"direct"` | `direct` ou `ent` |
+| `pronote.url` | `""` | URL HTTPS de l'instance PRONOTE |
+| `pronote.username` / `pronote.password` | `""` | identifiants PRONOTE, jamais exposés par l'API |
+| `pronote.refresh_seconds` | `900` | 300–86400 s |
+| `pronote.days_ahead` | `7` | 1–14 jours de recherche du prochain jour de cours |
 | `system.refresh_seconds` | `2` | 1–60 s |
 | `system.thresholds.cpu_warn_percent` | `80` | seuil d'alerte CPU |
 | `system.thresholds.cpu_critical_percent` | `95` | seuil critique CPU |
@@ -393,7 +486,8 @@ adaptez l'unité systemd (`StateDirectory`/`ReadWritePaths`) et les droits.
 
 ```bash
 cd /opt/pi-dashboard
-python3 -m backend.main --check-config --config /etc/pi-dashboard/config.json
+/var/lib/pi-dashboard/venv/bin/python -m backend.main \
+  --check-config --config /etc/pi-dashboard/config.json
 ```
 
 La commande affiche les avertissements, notamment les coordonnées manquantes,
@@ -441,13 +535,18 @@ Fichiers installés :
 | Élément | Chemin |
 |---|---|
 | Application | `/opt/pi-dashboard` |
-| Configuration | `/etc/pi-dashboard/config.json` |
+| Configuration | `/etc/pi-dashboard/config.json` (0640, identifiants PRONOTE) |
 | Cache et état | `/var/lib/pi-dashboard` |
-| Unité systemd | `/etc/systemd/system/pi-dashboard.service` |
+| Venv Python | `/var/lib/pi-dashboard/venv` |
+| Unité backend | `/etc/systemd/system/pi-dashboard.service` |
+| Unité planification écran | `/etc/systemd/system/pi-dashboard-display.service` |
+| Minuterie planification écran | `/etc/systemd/system/pi-dashboard-display.timer` |
+| Politique Chromium | `/etc/chromium/policies/managed/pi-dashboard.json` |
 | Minuterie auto-update | `/etc/systemd/system/pi-dashboard-update.timer` |
 | Configuration auto-update | `/etc/pi-dashboard/update.json` |
 | Sauvegarde de rollback | `/var/lib/pi-dashboard/update-backup` |
 | Commande kiosque | `/usr/local/bin/pi-dashboard-kiosk` |
+| Commande écran | `/usr/local/bin/pi-dashboard-display` |
 | Commande mise à jour | `/usr/local/bin/pi-dashboard-update` |
 
 ### Kiosque
@@ -480,6 +579,9 @@ Le lanceur :
 - empêche deux instances avec `flock` ;
 - neutralise le blanking de la session : `xset s off -dpms` en X11, arrêt du
   processus Raspberry Pi `swayidle`+`wlopm` en labwc/Wayland ;
+- ajoute `--lang=fr-FR`, `--accept-lang=fr-FR,fr`, `--disable-translate` et
+  installe la politique `TranslateEnabled: false` pour supprimer la bulle de
+  traduction en haut à droite ;
 - conserve un journal dans `~/.cache/pi-dashboard/kiosk.log` (rotation à 1 Mo).
 
 ### Commandes de maintenance du kiosque
@@ -542,6 +644,73 @@ luminosité matérielle HDMI.
 
 ---
 
+## Planification de l'écran
+
+Cette fonction coupe la **sortie HDMI** (le « retour vidéo ») sans arrêter le
+backend, Chromium ni la session Desktop. Le Raspberry Pi continue donc de
+collecter la météo, PRONOTE et les métriques ; seul l'écran ne reçoit plus de
+signal.
+
+Configuration initiale demandée :
+
+| Jour(s) | Coupure |
+|---|---|
+| lundi à vendredi | `21:40` → `06:45` le lendemain |
+| lundi à vendredi | `07:20` → `18:00` le jour même |
+| samedi | `22:00` → `11:00` le dimanche |
+| dimanche | `21:40` → `06:40` le lundi |
+
+Le lundi matin, la plage du dimanche se termine donc à `06:40`, puis l'écran
+reste allumé jusqu'à la coupure de journée à `07:20`.
+
+```json
+"screen_schedule": {
+  "enabled": true,
+  "off_periods": [
+    {
+      "days": ["mon", "tue", "wed", "thu", "fri"],
+      "start": "21:40",
+      "end": "06:45"
+    },
+    {
+      "days": ["mon", "tue", "wed", "thu", "fri"],
+      "start": "07:20",
+      "end": "18:00"
+    },
+    {"days": ["sat"], "start": "22:00", "end": "11:00"},
+    {"days": ["sun"], "start": "21:40", "end": "06:40"}
+  ]
+}
+```
+
+Chaque plage appartient à son **jour de début** : une plage `sun 21:40 → 06:40`
+couvre le dimanche soir et le lundi matin. Les jours acceptent `mon`, `tue`,
+`wed`, `thu`, `fri`, `sat`, `sun` (ou les noms français/anglais complets).
+`start` et `end` doivent être différents ; une plage qui traverse minuit est
+normale.
+
+Commandes :
+
+```bash
+sudo pi-dashboard-display --status   # état calculé et prochaine transition
+sudo systemctl status pi-dashboard-display.timer
+sudo systemctl list-timers pi-dashboard-display.timer
+sudo journalctl -u pi-dashboard-display -n 40
+```
+
+Le service `pi-dashboard-display.service` s'exécute chaque minute et applique
+l'état avec `vcgencmd display_power 0|1` (fallback `tvservice -o|-p`). La
+commande est idempotente : si l'écran est déjà dans l'état voulu, rien n'est
+envoyé. Pour désactiver la planification sans supprimer le service :
+
+```json
+"screen_schedule": {"enabled": false, "off_periods": []}
+```
+
+puis `sudo systemctl restart pi-dashboard-display.service`. Le mode nuit visuel
+(`night_mode`) est indépendant : il assombrit l'interface, alors que
+`screen_schedule` coupe réellement le signal HDMI.
+
 ## Mode nuit
 
 - Configuration : `night_mode.enabled`, `night_mode.start`, `night_mode.end`.
@@ -558,6 +727,37 @@ Le mode nuit est **visuel uniquement**. Aucune luminosité matérielle HDMI n'es
 pilotée ; une gestion de luminosité physique devrait être un mécanisme séparé,
 optionnel et désactivé par défaut. Sur un téléviseur, utilisez ses propres
 réglages d'image ou une prise/commande HDMI externe.
+
+---
+
+## Emploi du temps PRONOTE
+
+- Bibliothèque : [`pronotepy`](https://github.com/bain3/pronotepy), client
+  communautaire non officiel, installé dans le venv par `install.sh`.
+- Académie : `pronote.academy` sélectionne l'ENT régional lorsque
+  `pronote.login` vaut `ent`. La correspondance est interne ; `pronote.ent`
+  permet de forcer une fonction `pronotepy.ent` précise.
+- L'URL PRONOTE reste celle de l'établissement : l'académie ne suffit pas à
+  deviner l'instance.
+- Le service interroge PRONOTE dans un thread séparé (15 minutes par défaut),
+  met les cours en cache et ne bloque jamais `/api/status`.
+- Sélection : l'emploi du temps du jour est affiché tant que la dernière heure
+  n'est pas terminée. Ensuite, le prochain jour **avec des cours** est choisi
+  dans les `days_ahead` jours (le lundi après un vendredi soir, par exemple).
+- Cours annulés : conservés et barrés, avec le badge `Annulé`. Les contrôles,
+  sorties et retenues sont signalés lorsqu'ils sont fournis par PRONOTE.
+- Panne ou identifiants invalides : le dernier emploi du temps est conservé
+  avec le badge `Hors ligne`, sinon la carte indique l'erreur. Le reste du
+  dashboard continue de fonctionner.
+- Les identifiants ne sont jamais renvoyés par `/api/status` ; seuls
+  `enabled`, `configured`, l'état, l'académie et les cours le sont.
+
+Vérification :
+
+```bash
+curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | sed -n '/timetable/,/ui/p'
+journalctl -u pi-dashboard -f | grep -i pronote
+```
 
 ---
 
@@ -591,7 +791,7 @@ CORS : ne l'exposez pas sur le réseau.
 {
   "status": "ok",
   "service": "Pi Dashboard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "uptime_seconds": 42,
   "weather_state": "ok",
   "time": "2026-10-28T13:15:00+01:00"
@@ -614,6 +814,14 @@ principaux :
   charge, `health` (`level`, `label`, `reasons`).
 - `network` : `wifi` (`available`, `connected`, `ssid`, `signal_percent`,
   `interface`), `ip_address`, `checked_at`, `online`.
+- `screen` : `schedule_enabled`, `off`, `next_change_at`,
+  `next_change_off`.
+- `timetable` : `enabled`, `configured`, `state` (`ready`, `stale`,
+  `loading`, `unconfigured`, `error`, `disabled`), `error`, `updated_at`,
+  `academy`, `day`, `relative` (`today`, `tomorrow`, `later`), `date`,
+  `weekday`, `lessons[]` (`start`, `end`, `subject`, `teacher`, `room`,
+  `group`, `canceled`, `status`, `test`, `outing`, `detention`).
+  Aucun identifiant PRONOTE n'est exposé.
 - `ui.poll_seconds`.
 
 Exemple :
@@ -636,26 +844,30 @@ en-têtes incluent CSP, `X-Content-Type-Options`, `X-Frame-Options`,
 Depuis la racine du projet :
 
 ```bash
-python3 -m unittest discover -s tests -v
+cd /opt/pi-dashboard
+/var/lib/pi-dashboard/venv/bin/python -m unittest discover -s tests -v
 ```
 
-La suite couvre : validation de configuration, plages nocturnes traversant
-minuit, construction de l'URL Open-Meteo, normalisation des données, cache
-disque, bascule sur cache périmé, erreurs réseau, parseurs `/proc` et `/sys`,
-santé système, Wi-Fi/IP, endpoints HTTP, en-têtes de sécurité, fichiers
-statiques, traversée de répertoire, HEAD/POST.
+La suite couvre : validation de configuration (dont `screen_schedule` et
+`pronote`), plages nocturnes traversant minuit, planification écran avec les
+horaires demandés, construction de l'URL Open-Meteo, normalisation des données,
+cache disque, bascule sur cache périmé, erreurs réseau, parseurs `/proc` et
+`/sys`, santé système, Wi-Fi/IP, endpoints HTTP, en-têtes de sécurité, fichiers
+statiques, traversée de répertoire, HEAD/POST, cache PRONOTE, sélection du jour
+ou du prochain jour de cours, cours annulés, états d'erreur et stabilité du
+dernier emploi du temps, application HDMI idempotente simulée.
 
 Résultat réel sur la machine de développement (Windows, Python 3.15, tests
-sans réseau) :
+sans réseau PRONOTE) :
 
 ```
-Ran 86 tests in 1.233s
+Ran 109 tests in 2.3s
 OK (skipped=1)
 ```
 
 Le test ignoré vérifie un fuseau IANA explicite ; la machine Windows de
 développement n'a pas la base `tzdata`, contrairement à Raspberry Pi OS. Les
-86 tests ont été exécutés, 85 ont réussi. Aucun test n'a été exécuté sur le
+109 tests ont été exécutés, 108 ont réussi. Aucun test n'a été exécuté sur le
 Raspberry Pi cible. La suite couvre aussi le parseur de versions, les sommes
 SHA-256, l'extraction d'archives hostiles, la validation d'une release et la
 configuration de l'updater, ainsi que l'application d'une mise à jour et le
@@ -665,16 +877,22 @@ rollback sur des arborescences temporaires.
 
 ```bash
 python3 -m compileall -q backend tests
+node --check frontend/assets/js/app.js
 bash -n deploy/install.sh deploy/uninstall.sh \
   deploy/kiosk/launch-kiosk.sh deploy/kiosk/pi-dashboard-kiosk \
-  deploy/update/pi-dashboard-update
+  deploy/update/pi-dashboard-update \
+  deploy/display/pi-dashboard-display
 ```
 
-Un appel réel à Open-Meteo (Paris, 48.8566/2.3522) a été effectué avec le
-backend : réponse en ~0,55 s, état `ok`, 8 entrées horaires, 5 entrées
-quotidiennes, lever/coucher disponibles, cache écrit. L'API `/api/status` a été
-interrogée en HTTP local et l'interface a été contrôlée dans Chromium à
-1920×1080 (aucun débordement vertical, 8 heures et 5 jours rendus).
+Un appel réel à Open-Meteo (Bonnefamille, 45.59956/5.12489) a été effectué
+avec le backend. Le client PRONOTE est couvert par des tests avec un client
+simulé (cours annulés, sélection du jour ou du prochain jour, cache et erreurs).
+La connexion à l'instance de démonstration publique a été tentée, mais le
+compte de démonstration a refusé la connexion lors de la dernière vérification :
+la connexion réelle dépend de l'établissement et doit être validée sur le Pi
+avec les identifiants de l'élève. L'API `/api/status` a été interrogée en HTTP
+local et l'interface a été contrôlée dans Chromium à 1920×1080 : aucun
+défilement vertical, carte emploi du temps rendue, aucune erreur console.
 
 La release GitHub `v1.1.0` a aussi été testée de bout en bout avec le vrai
 updater : téléchargement HTTPS, contrôle de `SHA256SUMS`, extraction et
@@ -731,11 +949,15 @@ Le dépôt GitHub est configuré dans `/etc/pi-dashboard/update.json` :
 6. exécute les tests de la nouvelle version et valide la configuration ;
 7. sauvegarde l'installation actuelle dans
    `/var/lib/pi-dashboard/update-backup` ;
-8. remplace `backend`, `frontend`, `tests` et `deploy`, sans toucher à
-   `/etc/pi-dashboard/config.json` ;
-9. redémarre `pi-dashboard.service` et attend un `/health` à la nouvelle
-   version ;
-10. en cas d'échec, restaure la sauvegarde, redémarre l'ancienne version et
+8. prépare le venv Python et installe `requirements.txt` dans
+   `/var/lib/pi-dashboard/venv` ;
+9. remplace `backend`, `frontend`, `tests`, `deploy`, `requirements.txt`,
+   `README.md` et `LICENSE`, sans toucher à `/etc/pi-dashboard/config.json` ;
+10. installe les unités systemd et la politique Chromium fournies par la
+    release, puis recharge systemd ;
+11. redémarre `pi-dashboard.service` et attend un `/health` à la nouvelle
+    version ;
+12. en cas d'échec, restaure la sauvegarde, redémarre l'ancienne version et
     écrit l'erreur dans le journal.
 
 Commandes :
@@ -756,6 +978,33 @@ immédiatement la version fautive ; `enable` la réactive après correction. Un
 changement de version est détecté par le frontend, qui recharge Chromium sans
 commande manuelle.
 
+### Mise à jour depuis une installation 1.1.0
+
+La 1.2.0 introduit le venv Python, la planification HDMI et la politique
+Chromium. Sur une installation 1.1.0 existante :
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3-venv python3-pip
+sudo pi-dashboard-update check
+sudo pi-dashboard-update run
+```
+
+Si le service de mise à jour de la 1.1.0 n'avait pas les droits d'écrire dans
+`/usr/local/bin` et `/etc/chromium`, l'updater installe quand même le code et
+les unités principales mais signale ces deux copies. Réappliquez alors
+l'intégration système depuis la nouvelle version, sans retélécharger :
+
+```bash
+sudo bash /opt/pi-dashboard/deploy/install.sh --kiosk-user pi \
+  --update-repo skyfoxmcdev/Pi-Dashboard
+sudo reboot
+```
+
+Cette réinstallation sur place ne recopie pas le code (source et destination
+sont identiques), mais réinstalle le venv, les unités, la politique Chromium et
+l'autostart. Elle conserve `/etc/pi-dashboard/config.json`.
+
 ### Publier une nouvelle version
 
 Le dépôt doit être **public** pour que le Pi télécharge sans jeton. Le workflow
@@ -764,10 +1013,10 @@ Le dépôt doit être **public** pour que le Pi télécharge sans jeton. Le work
 ```bash
 # Après avoir incrémenté __version__ dans backend/__init__.py
 git add -A
-git commit -m "Version 1.1.0"
-git tag v1.1.0
+git commit -m "Version 1.2.0"
+git tag v1.2.0
 git push origin main
-git push origin v1.1.0
+git push origin v1.2.0
 ```
 
 GitHub Actions exécute les tests, construit `pi-dashboard-X.Y.Z.tar.gz`, publie
@@ -789,10 +1038,10 @@ sudo bash deploy/install.sh --kiosk-user pi \
   --update-repo skyfoxmcdev/Pi-Dashboard
 ```
 
-> Ne lancez pas l'installateur depuis `/opt/pi-dashboard` en espérant remplacer
-> le code : source et destination seraient identiques, et il refuse alors la
-> copie destructrice. Extrayez la nouvelle version dans un autre dossier, puis
-> lancez son `deploy/install.sh`.
+> Relancer l'installateur depuis `/opt/pi-dashboard` réapplique les unités, le
+> venv et la politique Chromium sans recopier le code (source et destination
+> sont identiques). Pour remplacer le code, extrayez la nouvelle version dans
+> un autre dossier, puis lancez son `deploy/install.sh`.
 
 Pour recharger le frontend dans Chromium sans attendre la détection de version :
 
@@ -871,13 +1120,73 @@ incomplète.
 - Open-Meteo peut limiter ou interrompre le service gratuit ; l'application
   conserve alors la dernière météo avec un badge.
 
+### PRONOTE affiche « À configurer »
+
+La carte reste en attente tant que `pronote.url`, `pronote.username` et
+`pronote.password` ne sont pas tous renseignés. Vérifiez aussi que le service
+a été redémarré après la modification :
+
+```bash
+sudo systemctl restart pi-dashboard
+curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | sed -n '/timetable/,/ui/p'
+```
+
+### PRONOTE refuse la connexion
+
+- Vérifiez l'URL directe de l'établissement : elle doit finir par `eleve.html`
+  ou équivalent, sans paramètre `?login=true`.
+- Essayez `"login": "direct"`, puis `"login": "ent"` si l'établissement impose
+  l'ENT.
+- Pour Grenoble, l'académie utilise l'ENT Auvergne-Rhône-Alpes. Si l'ENT change,
+  indiquez la fonction exacte dans `pronote.ent`.
+- Consultez le message de la carte et le journal :
+  `journalctl -u pi-dashboard -f | grep -i pronote`.
+- Si le compte exige une validation en deux étapes, la connexion
+  identifiant/mot de passe peut être refusée ; le support QR/token de
+  `pronotepy` n'est pas exposé dans cette configuration.
+- Vérifiez que le venv est intact :
+  `sudo /var/lib/pi-dashboard/venv/bin/python -c "import pronotepy; print(pronotepy.__version__)"`.
+
+### La bulle de traduction Chromium persiste
+
+La politique est installée dans
+`/etc/chromium/policies/managed/pi-dashboard.json`. Vérifiez-la :
+
+```bash
+cat /etc/chromium/policies/managed/pi-dashboard.json
+```
+
+Le contenu doit être `{"TranslateEnabled": false}`. Redémarrez Chromium
+(`pi-dashboard-kiosk restart`) ; un onglet déjà ouvert peut conserver la bulle
+jusqu'au rechargement. Les drapeaux `--disable-translate`,
+`--disable-features=Translate,TranslateUI`, `--lang=fr-FR` et
+`--accept-lang=fr-FR,fr` sont aussi passés au lanceur.
+
+### L'écran ne se coupe pas ou ne se rallume pas
+
+```bash
+sudo pi-dashboard-display --status
+sudo systemctl status pi-dashboard-display.timer
+sudo journalctl -u pi-dashboard-display -n 40
+sudo vcgencmd display_power
+```
+
+- Si `vcgencmd` n'est pas disponible, le service tente `tvservice -o/-p`.
+- Si le moniteur ignore la coupure HDMI, vérifiez son propre mode d'économie
+  d'énergie et le câble.
+- La planification ne coupe que le signal vidéo : le backend et Chromium
+  continuent de tourner.
+- Pour suspendre temporairement la planification, passez
+  `screen_schedule.enabled` à `false` puis redémarrez le service.
+
 ### Le service ne démarre pas
 
 ```bash
 systemctl status pi-dashboard --no-pager -l
 journalctl -u pi-dashboard -n 80 --no-pager
 cd /opt/pi-dashboard
-python3 -m backend.main --check-config --config /etc/pi-dashboard/config.json
+/var/lib/pi-dashboard/venv/bin/python -m backend.main \
+  --check-config --config /etc/pi-dashboard/config.json
 ```
 
 Causes fréquentes : JSON invalide, coordonnées seules, port occupé, cache dans
@@ -924,6 +1233,7 @@ la température. Le lanceur réessaie après 5 s, avec un délai croissant si le
 Les drapeaux mémoire ne sont appliqués que si `MemTotal` < 1,5 Go.
 
 ### L'écran s'éteint quand même
+
 
 - Vérifiez que la session est bien labwc : `echo $XDG_SESSION_TYPE`.
 - Dans la session, le lanceur doit avoir arrêté `swayidle` ; vérifiez
@@ -982,7 +1292,9 @@ charge.
 - **1 Go de RAM avec Desktop** : Chromium et la session graphique sont les
   postes dominants. Le mode kiosque ne supprime pas le bureau ; il le recouvre.
   Le rendu à 60 FPS n'est pas garanti, seulement visé par des choix sobres.
-- **Pas de contrôle de luminosité HDMI** : le mode nuit est visuel.
+- **Pas de contrôle de luminosité HDMI** : `screen_schedule` coupe ou
+  rallume la sortie HDMI via `vcgencmd`, mais ne règle pas la luminosité. Le
+  mode nuit reste visuel.
 - **Wayland/labwc** : mécanisme de blanking arrêté au niveau du processus
   `swayidle`. Une version future de Raspberry Pi OS peut changer ce nom ou ce
   comportement ; la cible testée logiquement est Trixie.
@@ -1018,18 +1330,29 @@ charge.
   `/etc/pi-dashboard/config.json`, ni les secrets éventuels, ni les données du
   cache. Si une nouvelle version exige une nouvelle clé de configuration, elle
   doit être ajoutée manuellement dans `/etc/pi-dashboard/config.json`.
-- **Unités systemd** : l'updater remplace le code et les scripts sous `/opt`,
-  mais pas les fichiers déjà installés dans `/etc/systemd/system`. Une
-  évolution des unités doit être appliquée en relançant `deploy/install.sh`
-  depuis la nouvelle version (ou manuellement).
+- **Unités systemd** : l'updater tente d'installer les unités et la politique
+  Chromium de la release, puis recharge systemd. Si le service de mise à jour
+  d'une ancienne installation est trop restreint pour écrire ces chemins, il
+  signale l'échec partiel ; relancez alors `deploy/install.sh` une fois.
+- **PRONOTE** : `pronotepy` est un client communautaire non officiel. Une
+  évolution de PRONOTE ou de l'ENT peut casser la connexion ; le dashboard
+  conserve alors le dernier emploi du temps et affiche l'erreur. Les comptes
+  protégés par une validation en deux étapes peuvent nécessiter une connexion
+  QR/token non couverte par cette configuration.
+- **Académies** : la correspondance automatique couvre les académies courantes
+  listées dans `backend/timetable.py`. Pour les autres, utilisez
+  `pronote.login=direct` ou renseignez `pronote.ent` explicitement.
+- **Coupure HDMI** : `vcgencmd display_power` dépend du firmware et de la
+  configuration KMS de Raspberry Pi OS. Le fallback `tvservice` est prévu,
+  mais le comportement réel doit être validé sur l'écran et le câble utilisés.
 - **Rollback** : conserve une seule sauvegarde de la version précédente ; un
   second échec avant correction peut la remplacer. En cas de rollback,
   l'auto-update est désactivée pour éviter une boucle.
 - **Image système** : non fournie.
-- **Tests** : les 86 tests ont été exécutés hors Raspberry Pi ; un test de
+- **Tests** : les 109 tests ont été exécutés hors Raspberry Pi ; un test de
   fuseau IANA a été ignoré sous Windows faute de base `tzdata`. L'installation
-  réelle, le redémarrage systemd, la minuterie et le rechargement du kiosque
-  n'ont pas été exécutés sur le Pi.
+  réelle, le redémarrage systemd, les minuteries, la coupure HDMI et le
+  rechargement du kiosque n'ont pas été exécutés sur le Pi.
 
 ---
 
@@ -1063,12 +1386,21 @@ charge.
 15. Vérifier les journaux : `journalctl -u pi-dashboard -f`,
     `~/.cache/pi-dashboard/kiosk.log`, aucune erreur CSP dans la console
     Chromium (`Ctrl+Shift+J` si accessible).
-16. Vérifier l'auto-update : `sudo pi-dashboard-update status`, puis
+16. Vérifier la carte PRONOTE avec les vrais identifiants : état `À jour`,
+    matières, horaires, salles, professeurs, cours annulés et bascule vers le
+    prochain jour après la dernière heure.
+17. Vérifier la bulle de traduction : elle ne doit plus apparaître en haut à
+    droite après redémarrage de Chromium.
+18. Vérifier la planification écran : `sudo pi-dashboard-display --status`,
+    puis attendre une borne (par exemple `07:20`) et confirmer la coupure HDMI
+    et le rallumage à `18:00`. Vérifier
+    `journalctl -u pi-dashboard-display -n 40`.
+19. Vérifier l'auto-update : `sudo pi-dashboard-update status`, puis
     `sudo pi-dashboard-update check` ; après publication d'une release de test,
     `sudo pi-dashboard-update run`, vérifier la nouvelle version dans
     `/health`, le rechargement du kiosque et
     `journalctl -u pi-dashboard-update -n 80`.
-17. Tester `sudo pi-dashboard-update rollback` sur une release de test, puis
+20. Tester `sudo pi-dashboard-update rollback` sur une release de test, puis
     `sudo pi-dashboard-update enable` après correction.
 
 ---

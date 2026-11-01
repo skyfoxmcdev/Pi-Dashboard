@@ -128,6 +128,67 @@ class ValidationTests(unittest.TestCase):
         warnings = config["_meta"]["warnings"]
         self.assertFalse(any("Coordonnées" in warning for warning in warnings))
 
+    def test_screen_schedule_defaults_match_requested_periods(self) -> None:
+        raw = json.loads((ROOT / "config" / "config.example.json").read_text(encoding="utf-8"))
+        config, _ = validate_config(raw, self.tmp_path)
+        periods = config["screen_schedule"]["off_periods"]
+        self.assertEqual(len(periods), 4)
+        self.assertEqual(periods[0]["days"], [0, 1, 2, 3, 4])
+        self.assertEqual(periods[0]["start"], "21:40")
+        self.assertEqual(periods[0]["end"], "06:45")
+
+    def test_screen_schedule_rejects_unknown_day(self) -> None:
+        self.raw["screen_schedule"]["off_periods"] = [
+            {"days": ["lundii"], "start": "22:00", "end": "07:00"}
+        ]
+        with self.assertRaises(ConfigError):
+            self.validate()
+
+    def test_screen_schedule_rejects_equal_bounds(self) -> None:
+        self.raw["screen_schedule"]["off_periods"] = [
+            {"days": ["mon"], "start": "22:00", "end": "22:00"}
+        ]
+        with self.assertRaises(ConfigError):
+            self.validate()
+
+    def test_pronote_direct_configuration_is_normalized(self) -> None:
+        self.raw["pronote"].update(
+            {
+                "enabled": True,
+                "login": "direct",
+                "url": "https://lycee.index-education.net/pronote/eleve.html",
+                "username": "eleve",
+                "password": "secret",
+            }
+        )
+        config, warnings = self.validate()
+        self.assertTrue(config["pronote"]["enabled"])
+        self.assertEqual(config["pronote"]["login"], "direct")
+        self.assertFalse(any("PRONOTE" in warning for warning in warnings))
+
+    def test_pronote_incomplete_enabled_configuration_warns(self) -> None:
+        self.raw["pronote"].update({"enabled": True, "login": "direct"})
+        _config, warnings = self.validate()
+        self.assertTrue(any("PRONOTE activé mais incomplet" in warning for warning in warnings))
+
+    def test_pronote_rejects_plain_http_url(self) -> None:
+        self.raw["pronote"].update(
+            {
+                "enabled": True,
+                "login": "direct",
+                "url": "http://lycee.example/pronote/eleve.html",
+                "username": "eleve",
+                "password": "secret",
+            }
+        )
+        with self.assertRaises(ConfigError):
+            self.validate()
+
+    def test_pronote_rejects_unknown_login_mode(self) -> None:
+        self.raw["pronote"]["login"] = "magic"
+        with self.assertRaises(ConfigError):
+            self.validate()
+
 
 if __name__ == "__main__":
     unittest.main()

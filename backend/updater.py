@@ -51,6 +51,10 @@ LOGGER = logging.getLogger("pi-dashboard-update")
 APP_DIR = Path(os.environ.get("PI_DASHBOARD_APP_DIR", "/opt/pi-dashboard"))
 CONFIG_DIR = Path(os.environ.get("PI_DASHBOARD_CONFIG_DIR", "/etc/pi-dashboard"))
 STATE_DIR = Path(os.environ.get("PI_DASHBOARD_STATE_DIR", "/var/lib/pi-dashboard"))
+VENV_DIR = Path(os.environ.get("PI_DASHBOARD_VENV", str(STATE_DIR / "venv")))
+SYSTEMD_DIR = Path("/etc/systemd/system")
+CHROMIUM_POLICY_DIR = Path("/etc/chromium/policies/managed")
+LOCAL_BIN_DIR = Path("/usr/local/bin")
 UPDATE_CONFIG = CONFIG_DIR / "update.json"
 APP_CONFIG = CONFIG_DIR / "config.json"
 STATE_FILE = STATE_DIR / "update-state.json"
@@ -85,9 +89,9 @@ VERSION_RE = re.compile(
 )
 CHECKSUM_RE = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(.+?)\s*$")
 UPDATABLE_DIRS = ("backend", "frontend", "tests", "deploy")
-UPDATABLE_FILES = ("README.md", "LICENSE")
+UPDATABLE_FILES = ("README.md", "LICENSE", "requirements.txt")
 EXECUTABLE_SUFFIXES = (".sh",)
-EXECUTABLE_NAMES = {"pi-dashboard-update", "pi-dashboard-kiosk"}
+EXECUTABLE_NAMES = {"pi-dashboard-update", "pi-dashboard-kiosk", "pi-dashboard-display"}
 
 
 class UpdateError(RuntimeError):
@@ -420,6 +424,11 @@ def validate_release_tree(root: Path, expected_version: str) -> None:
         "frontend/index.html",
         "deploy/install.sh",
         "deploy/systemd/pi-dashboard.service",
+        "deploy/systemd/pi-dashboard-display.service",
+        "deploy/systemd/pi-dashboard-display.timer",
+        "deploy/display/pi-dashboard-display",
+        "deploy/chromium/policies.json",
+        "requirements.txt",
         "tests",
     )
     missing = [name for name in required if not (root / name).exists()]
@@ -430,6 +439,103 @@ def validate_release_tree(root: Path, expected_version: str) -> None:
         raise UpdateError(
             f"version incohérente : release {expected_version}, code {actual}"
         )
+
+
+def runtime_python() -> str:
+    """Python used for release tests: the app venv once it exists."""
+
+    candidate = VENV_DIR / "bin" / "python"
+    return str(candidate) if candidate.is_file() else sys.executable
+
+
+def ensure_runtime(root: Path) -> None:
+    """Create the venv and install the release requirements.
+
+    This is a best-effort migration for installations created before the venv
+    existed.  A failure is reported before the running code is replaced, so
+    the previous version keeps serving the dashboard.
+    """
+
+    if not (VENV_DIR / "bin" / "python").is_file():
+        VENV_DIR.parent.mkdir(parents=True, exist_ok=True)
+        created = run_checked(
+            [sys.executable, "-m", "venv", str(VENV_DIR)],
+            cwd=root,
+            timeout=120,
+        )
+        if created.returncode != 0:
+            detail = (created.stderr or created.stdout or "").strip()[-1000:]
+            raise UpdateError(
+                "création du venv Python impossible (paquet python3-venv ?)\n"
+                f"{detail}"
+            )
+    requirements = root / "requirements.txt"
+    if not requirements.is_file():
+        return
+    installed = run_checked(
+        [
+            runtime_python(),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "-r",
+            str(requirements),
+        ],
+        cwd=root,
+        timeout=600,
+    )
+    if installed.returncode != 0:
+        detail = (installed.stderr or installed.stdout or "").strip()[-2000:]
+        raise UpdateError(f"installation des dépendances Python en échec\n{detail}")
+
+
+def install_system_integration(root: Path) -> None:
+    """Install units and Chromium policy shipped by the release.
+
+    The updater is already privileged; this keeps an existing 1.1.x install
+    compatible with the venv-based 1.2 service without requiring a manual
+    reinstall for every future release.
+    """
+
+    def copy(source: Path, destination: Path) -> None:
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        except OSError as exc:
+            LOGGER.warning("intégration système : %s non copié (%s)", destination, exc)
+
+    SYSTEMD_DIR.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "pi-dashboard.service",
+        "pi-dashboard-update.service",
+        "pi-dashboard-update.timer",
+        "pi-dashboard-display.service",
+        "pi-dashboard-display.timer",
+    ):
+        source = root / "deploy" / "systemd" / name
+        if source.is_file():
+            copy(source, SYSTEMD_DIR / name)
+    wrapper = root / "deploy" / "display" / "pi-dashboard-display"
+    if wrapper.is_file():
+        copy(wrapper, LOCAL_BIN_DIR / "pi-dashboard-display")
+        try:
+            (LOCAL_BIN_DIR / "pi-dashboard-display").chmod(0o755)
+        except OSError:
+            pass
+    policy = root / "deploy" / "chromium" / "policies.json"
+    if policy.is_file():
+        copy(policy, CHROMIUM_POLICY_DIR / "pi-dashboard.json")
+    try:
+        subprocess.run(["systemctl", "daemon-reload"], check=False, timeout=30)
+        subprocess.run(
+            ["systemctl", "enable", "--now", "pi-dashboard-display.timer"],
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        LOGGER.warning("systemctl après mise à jour : %s", exc)
 
 
 def run_checked(command: list[str], *, cwd: Path, timeout: int = 180) -> subprocess.CompletedProcess[str]:
@@ -450,13 +556,13 @@ def run_checked(command: list[str], *, cwd: Path, timeout: int = 180) -> subproc
 
 
 def validate_stage(root: Path, *, config_file: Path | None = None) -> None:
-    tests = run_checked([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"], cwd=root)
+    tests = run_checked([runtime_python(), "-m", "unittest", "discover", "-s", "tests", "-q"], cwd=root)
     if tests.returncode != 0:
         detail = (tests.stderr or tests.stdout or "").strip()[-2000:]
         raise UpdateError(f"tests de la release en échec\n{detail}")
     if config_file and config_file.exists():
         config_check = run_checked(
-            [sys.executable, "-m", "backend.main", "--config", str(config_file), "--check-config"],
+            [runtime_python(), "-m", "backend.main", "--config", str(config_file), "--check-config"],
             cwd=root,
         )
         if config_check.returncode != 0:
@@ -745,12 +851,15 @@ def perform_update(
                 raise UpdateError("empreinte SHA-256 incorrecte ; archive refusée")
             stage = safe_extract(archive, temp_root / "extract")
             validate_release_tree(stage, release.version)
+            LOGGER.info("préparation de l'environnement Python de la release")
+            ensure_runtime(stage)
             LOGGER.info("validation des tests de la release %s", release.version)
             validate_stage(stage, config_file=config_file)
 
             snapshot(app_dir, state_dir / "update-backup")
             try:
                 apply_tree(stage, app_dir)
+                install_system_integration(stage)
                 restart_service()
                 wait_for_health(service_port(config_file), expected_version=release.version)
             except Exception:

@@ -14,6 +14,7 @@ from typing import Sequence
 from . import APP_NAME, __version__
 from .config import ConfigError, load_config
 from .dashboard import DashboardApp
+from .screen_schedule import describe_schedule
 from .http_server import create_server
 
 DEFAULT_CONFIG_PATH = "/etc/pi-dashboard/config.json"
@@ -71,6 +72,21 @@ def _print_config_summary(config: dict, path: str) -> None:
             else "désactivé"
         )
     )
+    screen = config["screen_schedule"]
+    print(
+        "Planification écran : "
+        + (describe_schedule(screen) if screen["enabled"] else "désactivée")
+    )
+    pronote = config["pronote"]
+    if not pronote["enabled"]:
+        print("PRONOTE : désactivé")
+    elif pronote["url"] and pronote["username"] and pronote["password"]:
+        print(
+            "PRONOTE : activé (académie "
+            f"{pronote['academy'] or pronote['ent'] or 'directe'})"
+        )
+    else:
+        print("PRONOTE : activé mais identifiants incomplets (carte de configuration)")
     print(f"Écoute : http://{config['server']['host']}:{config['server']['port']}")
     warnings = config.get("_meta", {}).get("warnings", [])
     if warnings:

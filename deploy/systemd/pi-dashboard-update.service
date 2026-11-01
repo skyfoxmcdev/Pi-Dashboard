@@ -14,7 +14,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 Nice=10
 IOSchedulingClass=idle
-TimeoutStartSec=300
+TimeoutStartSec=900
 UMask=0022
 
 # L'updater doit pouvoir remplacer le code et redémarrer les services.
@@ -23,7 +23,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths=/opt/pi-dashboard /var/lib/pi-dashboard /etc/pi-dashboard /etc/systemd/system
+ReadWritePaths=/opt/pi-dashboard /var/lib/pi-dashboard /etc/pi-dashboard /etc/systemd/system /usr/local/bin /etc/chromium /usr/local/bin /etc/chromium
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

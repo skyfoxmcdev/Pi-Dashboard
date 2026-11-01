@@ -23,6 +23,42 @@
     "start": "22:00",
     "end": "07:00"
   },
+  "screen_schedule": {
+    "enabled": true,
+    "off_periods": [
+      {
+        "days": ["mon", "tue", "wed", "thu", "fri"],
+        "start": "21:40",
+        "end": "06:45"
+      },
+      {
+        "days": ["mon", "tue", "wed", "thu", "fri"],
+        "start": "07:20",
+        "end": "18:00"
+      },
+      {
+        "days": ["sat"],
+        "start": "22:00",
+        "end": "11:00"
+      },
+      {
+        "days": ["sun"],
+        "start": "21:40",
+        "end": "06:40"
+      }
+    ]
+  },
+  "pronote": {
+    "enabled": false,
+    "academy": "Grenoble",
+    "ent": "",
+    "login": "ent",
+    "url": "https://VOTRE-ETABLISSEMENT.index-education.net/pronote/eleve.html",
+    "username": "",
+    "password": "",
+    "refresh_seconds": 900,
+    "days_ahead": 7
+  },
   "system": {
     "refresh_seconds": 2,
     "thresholds": {

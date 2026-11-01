@@ -1,8 +1,8 @@
-"""Pi Dashboard: a lightweight local weather and system dashboard.
+"""Pi Dashboard: a lightweight local weather, timetable and system dashboard.
 
-The package intentionally uses only the Python standard library so that it can
-run unchanged on Raspberry Pi OS without a build toolchain.
+Only the PRONOTE integration needs a third-party package (pronotepy); the
+installer provides it in a dedicated virtual environment.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 APP_NAME = "Pi Dashboard"

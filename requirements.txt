@@ -1,0 +1,2 @@
+# Emploi du temps PRONOTE (client non officiel communautaire).
+pronotepy==2.15.7

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Pi Dashboard — diagnostic et application manuelle de la planification écran.
+# « --apply » doit être lancé avec sudo ; « --status » fonctionne sans sudo.
+
+set -Eeuo pipefail
+
+APP_DIR="${PI_DASHBOARD_APP_DIR:-/opt/pi-dashboard}"
+VENV="${PI_DASHBOARD_VENV:-/var/lib/pi-dashboard/venv}"
+
+cd "$APP_DIR"
+if [[ -x "$VENV/bin/python" ]]; then
+  exec "$VENV/bin/python" -m backend.display "$@"
+fi
+exec /usr/bin/python3 -m backend.display "$@"

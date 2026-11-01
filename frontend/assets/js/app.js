@@ -554,6 +554,219 @@
     }
   }
 
+  function timetableDayLabel(data) {
+    if (typeof data.date !== "string") {
+      return "PRONOTE · chargement…";
+    }
+    const parsed = new Date(`${data.date}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return data.day || "Emploi du temps";
+    }
+    let dateLabel = data.day || data.date;
+    try {
+      dateLabel = new Intl.DateTimeFormat("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(parsed);
+    } catch {
+      /* Keep the server label. */
+    }
+    if (data.relative === "today") {
+      return `Aujourd'hui · ${dateLabel}`;
+    }
+    if (data.relative === "tomorrow") {
+      return `Demain · ${dateLabel}`;
+    }
+    return `Prochain jour de cours · ${dateLabel}`;
+  }
+
+  function makeLessonBadge(label, level) {
+    const badge = document.createElement("span");
+    badge.className = "lesson__badge";
+    badge.dataset.level = level;
+    badge.textContent = label;
+    return badge;
+  }
+
+  function renderTimetable(timetable) {
+    const card = byId("timetable-card");
+    const list = byId("timetable-list");
+    const day = byId("timetable-day");
+    const pill = byId("timetable-state");
+    const footer = byId("timetable-footer");
+    if (!card || !list) {
+      return;
+    }
+
+    const state = timetable.state || "loading";
+    card.hidden = state === "disabled";
+    if (card.hidden) {
+      return;
+    }
+
+    const stateLabels = {
+      ready: "À jour",
+      stale: "Hors ligne",
+      loading: "Chargement",
+      unconfigured: "À configurer",
+      error: "Erreur",
+      disabled: "Désactivé",
+    };
+    const stateLevels = {
+      ready: "ok",
+      stale: "warn",
+      loading: "unknown",
+      unconfigured: "warn",
+      error: "critical",
+      disabled: "unknown",
+    };
+    if (pill) {
+      pill.textContent = stateLabels[state] || "PRONOTE";
+      pill.dataset.level = stateLevels[state] || "unknown";
+    }
+
+    if (day) {
+      if (state === "unconfigured") {
+        day.textContent = "PRONOTE · configuration requise";
+      } else if (state === "loading") {
+        day.textContent = "PRONOTE · connexion en cours…";
+      } else if (state === "error") {
+        day.textContent = "PRONOTE · indisponible";
+      } else {
+        day.textContent = timetableDayLabel(timetable);
+      }
+    }
+
+    list.textContent = "";
+    if (state === "unconfigured") {
+      const message = document.createElement("p");
+      message.className = "timetable__message";
+      message.textContent =
+        "Renseignez pronote.url, pronote.username et pronote.password dans /etc/pi-dashboard/config.json, puis redémarrez le service.";
+      list.append(message);
+      if (footer) {
+        footer.textContent = `Académie : ${timetable.academy || "non renseignée"}`;
+      }
+      return;
+    }
+    if (state === "error") {
+      const message = document.createElement("p");
+      message.className = "timetable__message timetable__message--error";
+      message.textContent = timetable.error || "Connexion PRONOTE impossible.";
+      list.append(message);
+      if (footer) {
+        footer.textContent = "Vérifiez la configuration ou la connexion Internet.";
+      }
+      return;
+    }
+
+    const lessons = Array.isArray(timetable.lessons) ? timetable.lessons : [];
+    if (lessons.length === 0) {
+      const message = document.createElement("p");
+      message.className = "timetable__message";
+      if (state === "loading") {
+        message.textContent = "Emploi du temps en cours de chargement…";
+      } else if (timetable.relative === "today") {
+        message.textContent = "Aucun cours prévu aujourd'hui.";
+      } else if (timetable.relative === "tomorrow") {
+        message.textContent = "Aucun cours prévu demain.";
+      } else {
+        message.textContent = "Aucun cours prévu ce jour-là.";
+      }
+      list.append(message);
+    } else {
+      const nowMinutes = zonedMinutes();
+      let nextMarked = false;
+      for (const lesson of lessons) {
+        const start = parseClock(lesson.start);
+        const end = parseClock(lesson.end);
+        const isToday = timetable.relative === "today";
+        const isCurrent =
+          isToday && !lesson.canceled && start !== null && end !== null && nowMinutes >= start && nowMinutes < end;
+        let isNext = false;
+        if (!isCurrent && isToday && !nextMarked && !lesson.canceled && start !== null && start > nowMinutes) {
+          isNext = true;
+          nextMarked = true;
+        }
+
+        const row = document.createElement("div");
+        row.className = "lesson";
+        row.setAttribute("role", "listitem");
+        if (lesson.canceled) {
+          row.classList.add("lesson--canceled");
+        }
+        if (isCurrent) {
+          row.classList.add("lesson--current");
+        }
+        if (isNext) {
+          row.classList.add("lesson--next");
+        }
+
+        const time = document.createElement("div");
+        time.className = "lesson__time";
+        const startNode = document.createElement("strong");
+        startNode.textContent = lesson.start || "—";
+        const endNode = document.createElement("span");
+        endNode.textContent = lesson.end || "—";
+        time.append(startNode, endNode);
+
+        const rail = document.createElement("span");
+        rail.className = "lesson__rail";
+        rail.setAttribute("aria-hidden", "true");
+
+        const body = document.createElement("div");
+        body.className = "lesson__body";
+        const top = document.createElement("div");
+        top.className = "lesson__top";
+        const subject = document.createElement("strong");
+        subject.className = "lesson__subject";
+        subject.textContent = lesson.subject || "Cours";
+        top.append(subject);
+        if (lesson.canceled) {
+          top.append(makeLessonBadge("Annulé", "critical"));
+        } else if (lesson.test) {
+          top.append(makeLessonBadge("Contrôle", "warn"));
+        } else if (lesson.outing) {
+          top.append(makeLessonBadge("Sortie", "ok"));
+        } else if (lesson.detention) {
+          top.append(makeLessonBadge("Retenue", "warn"));
+        }
+        if (isCurrent) {
+          top.append(makeLessonBadge("En cours", "ok"));
+        } else if (isNext) {
+          top.append(makeLessonBadge("À venir", "unknown"));
+        }
+
+        const meta = document.createElement("span");
+        meta.className = "lesson__meta";
+        const parts = [];
+        if (lesson.room) {
+          parts.push(lesson.room);
+        }
+        if (lesson.teacher) {
+          parts.push(lesson.teacher);
+        }
+        if (lesson.group) {
+          parts.push(lesson.group);
+        }
+        meta.textContent = parts.length ? parts.join(" · ") : "Lieu non précisé";
+        body.append(top, meta);
+        row.append(time, rail, body);
+        list.append(row);
+      }
+    }
+
+    if (footer) {
+      if (timetable.updated_at) {
+        const prefix = state === "stale" ? "Dernière mise à jour" : "Actualisé à";
+        footer.textContent = `${prefix} ${formatClockDate(timetable.updated_at)}`;
+      } else {
+        footer.textContent = "PRONOTE · actualisation automatique";
+      }
+    }
+  }
+
   function renderDaily(weather) {
     const list = byId("daily-list");
     if (!list) {
@@ -784,6 +997,7 @@
     renderWeather(data.weather || {});
     renderHourly(data.weather || {});
     renderDaily(data.weather || {});
+    renderTimetable(data.timetable || {});
     renderSystem(data.system || {});
     renderNetwork(data.network || {}, data.weather || {});
     updateClock();

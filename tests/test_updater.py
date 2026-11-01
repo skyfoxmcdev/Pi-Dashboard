@@ -130,6 +130,13 @@ class TreeValidationTests(unittest.TestCase):
         (root / "deploy" / "systemd").mkdir(parents=True)
         (root / "deploy" / "install.sh").write_text("", encoding="utf-8")
         (root / "deploy" / "systemd" / "pi-dashboard.service").write_text("", encoding="utf-8")
+        (root / "deploy" / "systemd" / "pi-dashboard-display.service").write_text("", encoding="utf-8")
+        (root / "deploy" / "systemd" / "pi-dashboard-display.timer").write_text("", encoding="utf-8")
+        (root / "deploy" / "display").mkdir(parents=True)
+        (root / "deploy" / "display" / "pi-dashboard-display").write_text("", encoding="utf-8")
+        (root / "deploy" / "chromium").mkdir(parents=True)
+        (root / "deploy" / "chromium" / "policies.json").write_text("{}", encoding="utf-8")
+        (root / "requirements.txt").write_text("pronotepy\n", encoding="utf-8")
         (root / "tests").mkdir()
 
     def test_release_tree_accepts_matching_version(self) -> None:
