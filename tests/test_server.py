@@ -102,7 +102,7 @@ class ServerTests(unittest.TestCase):
         ):
             self.assertIn(key, payload)
         self.assertEqual(payload["app"]["name"], "Pi Dashboard")
-        self.assertEqual(payload["app"]["version"], "1.2.0")
+        self.assertEqual(payload["app"]["version"], "1.2.1")
         self.assertEqual(payload["timetable"]["state"], "disabled")
         self.assertIn("off", payload["screen"])
         self.assertEqual(payload["weather"]["state"], "unconfigured")

@@ -331,10 +331,28 @@ ensure_ca_certificates() {
     || warn "ca-certificates n'a pas pu être installé ; la météo HTTPS peut échouer."
 }
 
+ensure_screen_control() {
+  if command -v wlr-randr >/dev/null 2>&1; then
+    return
+  fi
+  if ((DRY_RUN == 1)); then
+    log "[dry-run] installerait wlr-randr (coupure HDMI sous Wayland)."
+    return
+  fi
+  log "Installation de wlr-randr (coupure HDMI de la session labwc/Wayland)."
+  if ((APT_UPDATED == 0)); then
+    apt-get update
+    APT_UPDATED=1
+  fi
+  DEBIAN_FRONTEND=noninteractive apt-get install -y wlr-randr \
+    || warn "wlr-randr n'a pas pu être installé ; le repli vcgencmd/tvservice sera utilisé."
+}
+
 if ((SKIP_KIOSK == 0)); then
   ensure_chromium
 fi
 ensure_ca_certificates
+ensure_screen_control
 
 if ((DRY_RUN == 1)); then
   log "[dry-run] aucune modification ne sera appliquée."

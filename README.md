@@ -23,7 +23,7 @@ plages horaires configurées.
 > prévu par l'autostart XDG et `xset`.
 
 Dépôt : <https://github.com/skyfoxmcdev/Pi-Dashboard>  
-Dernière release : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.2.0>
+Dernière release : <https://github.com/skyfoxmcdev/Pi-Dashboard/releases/tag/v1.2.1>
 
 ---
 
@@ -267,7 +267,8 @@ Si l'utilisateur du bureau n'est pas `pi`, remplacez la valeur. L'installateur
 réalise ces opérations :
 
 - vérifie Debian/Raspberry Pi OS, l'architecture `aarch64`, la session Desktop ;
-- installe uniquement `chromium` s'il manque (aucun second bureau) ;
+- installe uniquement `chromium` et `wlr-randr` s'ils manquent (aucun second
+  bureau) ;
 - crée l'utilisateur système `pi-dashboard` ;
 - copie l'application dans `/opt/pi-dashboard` ;
 - crée le venv `/var/lib/pi-dashboard/venv` et y installe `pronotepy` et ses
@@ -698,10 +699,13 @@ sudo systemctl list-timers pi-dashboard-display.timer
 sudo journalctl -u pi-dashboard-display -n 40
 ```
 
-Le service `pi-dashboard-display.service` s'exécute chaque minute et applique
-l'état avec `vcgencmd display_power 0|1` (fallback `tvservice -o|-p`). La
-commande est idempotente : si l'écran est déjà dans l'état voulu, rien n'est
-envoyé. Pour désactiver la planification sans supprimer le service :
+Le service `pi-dashboard-display.service` s'exécute chaque minute. Sur la
+session Wayland de Raspberry Pi OS Desktop, il utilise
+`wlr-randr --output HDMI-A-1 --off|--on` (le socket est détecté dans
+`/run/user/*/wayland-*`). Si Wayland n'est pas disponible, il retombe sur
+`vcgencmd display_power 0|1`, puis sur `tvservice -o|-p`. La commande est
+idempotente : si l'écran est déjà dans l'état voulu, rien n'est envoyé. Pour
+désactiver la planification sans supprimer le service :
 
 ```json
 "screen_schedule": {"enabled": false, "off_periods": []}
@@ -791,7 +795,7 @@ CORS : ne l'exposez pas sur le réseau.
 {
   "status": "ok",
   "service": "Pi Dashboard",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "uptime_seconds": 42,
   "weather_state": "ok",
   "time": "2026-10-28T13:15:00+01:00"
@@ -855,19 +859,20 @@ cache disque, bascule sur cache périmé, erreurs réseau, parseurs `/proc` et
 `/sys`, santé système, Wi-Fi/IP, endpoints HTTP, en-têtes de sécurité, fichiers
 statiques, traversée de répertoire, HEAD/POST, cache PRONOTE, sélection du jour
 ou du prochain jour de cours, cours annulés, états d'erreur et stabilité du
-dernier emploi du temps, application HDMI idempotente simulée.
+dernier emploi du temps, application HDMI idempotente simulée (Wayland,
+`vcgencmd` et `tvservice`).
 
 Résultat réel sur la machine de développement (Windows, Python 3.15, tests
 sans réseau PRONOTE) :
 
 ```
-Ran 109 tests in 2.3s
+Ran 113 tests in 2.3s
 OK (skipped=1)
 ```
 
 Le test ignoré vérifie un fuseau IANA explicite ; la machine Windows de
 développement n'a pas la base `tzdata`, contrairement à Raspberry Pi OS. Les
-109 tests ont été exécutés, 108 ont réussi. Aucun test n'a été exécuté sur le
+113 tests ont été exécutés, 112 ont réussi. Aucun test n'a été exécuté sur le
 Raspberry Pi cible. La suite couvre aussi le parseur de versions, les sommes
 SHA-256, l'extraction d'archives hostiles, la validation d'une release et la
 configuration de l'updater, ainsi que l'application d'une mise à jour et le
@@ -987,11 +992,12 @@ commande manuelle.
 ### Mise à jour depuis une installation 1.1.0
 
 La 1.2.0 introduit le venv Python, la planification HDMI et la politique
-Chromium. Sur une installation 1.1.0 existante :
+Chromium ; la 1.2.1 ajoute la coupure Wayland via `wlr-randr`. Sur une
+installation 1.1.0 existante :
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip
+sudo apt-get install -y python3-venv python3-pip wlr-randr
 sudo pi-dashboard-update check
 sudo pi-dashboard-update run
 ```
@@ -1019,10 +1025,10 @@ Le dépôt doit être **public** pour que le Pi télécharge sans jeton. Le work
 ```bash
 # Après avoir incrémenté __version__ dans backend/__init__.py
 git add -A
-git commit -m "Version 1.2.0"
-git tag v1.2.0
+git commit -m "Version 1.2.1"
+git tag v1.2.1
 git push origin main
-git push origin v1.2.0
+git push origin v1.2.1
 ```
 
 GitHub Actions exécute les tests, construit `pi-dashboard-X.Y.Z.tar.gz`, publie
@@ -1174,10 +1180,14 @@ jusqu'au rechargement. Les drapeaux `--disable-translate`,
 sudo pi-dashboard-display --status
 sudo systemctl status pi-dashboard-display.timer
 sudo journalctl -u pi-dashboard-display -n 40
+command -v wlr-randr && ls /run/user/*/wayland-*
 sudo vcgencmd display_power
 ```
 
-- Si `vcgencmd` n'est pas disponible, le service tente `tvservice -o/-p`.
+- Si `wlr-randr` est absent : `sudo apt install wlr-randr` puis
+  `sudo systemctl restart pi-dashboard-display.timer`.
+- Si aucun socket Wayland n'est trouvé, le service retombe sur `vcgencmd`, puis
+  sur `tvservice -o/-p`.
 - Si le moniteur ignore la coupure HDMI, vérifiez son propre mode d'économie
   d'énergie et le câble.
 - La planification ne coupe que le signal vidéo : le backend et Chromium
@@ -1299,8 +1309,8 @@ charge.
   postes dominants. Le mode kiosque ne supprime pas le bureau ; il le recouvre.
   Le rendu à 60 FPS n'est pas garanti, seulement visé par des choix sobres.
 - **Pas de contrôle de luminosité HDMI** : `screen_schedule` coupe ou
-  rallume la sortie HDMI via `vcgencmd`, mais ne règle pas la luminosité. Le
-  mode nuit reste visuel.
+  rallume la sortie HDMI via `wlr-randr` (ou `vcgencmd` en repli), mais ne
+  règle pas la luminosité. Le mode nuit reste visuel.
 - **Wayland/labwc** : mécanisme de blanking arrêté au niveau du processus
   `swayidle`. Une version future de Raspberry Pi OS peut changer ce nom ou ce
   comportement ; la cible testée logiquement est Trixie.
@@ -1348,14 +1358,16 @@ charge.
 - **Académies** : la correspondance automatique couvre les académies courantes
   listées dans `backend/timetable.py`. Pour les autres, utilisez
   `pronote.login=direct` ou renseignez `pronote.ent` explicitement.
-- **Coupure HDMI** : `vcgencmd display_power` dépend du firmware et de la
-  configuration KMS de Raspberry Pi OS. Le fallback `tvservice` est prévu,
-  mais le comportement réel doit être validé sur l'écran et le câble utilisés.
+- **Coupure HDMI** : sur la session Wayland, `wlr-randr` désactive la sortie
+  du compositeur ; l'écran doit ensuite se mettre en veille ou afficher « no
+  signal » selon son propre comportement. Le repli `vcgencmd`/`tvservice`
+  dépend du firmware et de la configuration KMS de Raspberry Pi OS. Le
+  comportement réel doit être validé sur l'écran et le câble utilisés.
 - **Rollback** : conserve une seule sauvegarde de la version précédente ; un
   second échec avant correction peut la remplacer. En cas de rollback,
   l'auto-update est désactivée pour éviter une boucle.
 - **Image système** : non fournie.
-- **Tests** : les 109 tests ont été exécutés hors Raspberry Pi ; un test de
+- **Tests** : les 113 tests ont été exécutés hors Raspberry Pi ; un test de
   fuseau IANA a été ignoré sous Windows faute de base `tzdata`. L'installation
   réelle, le redémarrage systemd, les minuteries, la coupure HDMI et le
   rechargement du kiosque n'ont pas été exécutés sur le Pi.
